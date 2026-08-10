@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import ChecklistView from './ChecklistView';
 import AdminView from './AdminView';
 import FillChecklistView from './FillChecklistView';
+import PWAInstallPrompt from './PWAInstallPrompt';
 import './App.css';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
@@ -34,6 +35,8 @@ function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  // Mobile: which tab is active — 'list' | 'content'
+  const [mobileTab, setMobileTab] = useState('list');
 
   // Mouse parallax for aurora & 3D background
   const handleMouseMove = useCallback((e) => {
@@ -81,6 +84,12 @@ function App() {
     }
   };
 
+  // When a checklist is selected on mobile, auto-switch to content tab
+  const handleSelectChecklist = (checklist) => {
+    setSelectedChecklist(checklist);
+    setMobileTab('content');
+  };
+
   return (
     <>
       {/* ── Animated 3D Background ── */}
@@ -112,27 +121,25 @@ function App() {
           <LiveClock />
           <div className="cloud-sync-status">
             <div className="status-dot online"></div>
-            <span>Live</span>
+            <span className="sync-label">Live</span>
           </div>
         </div>
 
         <div className="header-actions">
+          <button className="theme-toggle-inline" onClick={toggleTheme} title="Toggle Theme">
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
           {!isAdminLoggedIn && (
             <button
               className="admin-login-btn"
               onClick={() => setShowLoginModal(true)}
               title="Admin Login"
             >
-              🔒 Admin
+              🔒 <span className="admin-btn-text">Admin</span>
             </button>
           )}
         </div>
       </header>
-
-      {/* ── Theme Toggle ── */}
-      <button className="theme-toggle glass-panel" onClick={toggleTheme} title="Toggle Theme">
-        {theme === 'dark' ? '☀️' : '🌙'}
-      </button>
 
       {/* ── Admin Login Modal ── */}
       {showLoginModal && !isAdminLoggedIn && (
@@ -146,7 +153,7 @@ function App() {
               <h3>🔐 Admin Login</h3>
               <button className="close-btn" onClick={() => setShowLoginModal(false)}>✕</button>
             </div>
-            <div className="modal-body" style={{ padding: '2rem' }}>
+            <div className="modal-body" style={{ padding: '1.5rem' }}>
               <form onSubmit={handleLogin} className="login-form">
                 <div className="input-group">
                   <label>Email</label>
@@ -180,22 +187,55 @@ function App() {
 
       {/* ── Main App Layout ── */}
       <div className="app-container">
-        <ChecklistView
-          checklists={checklists}
-          loading={loading}
-          selectedChecklist={selectedChecklist}
-          setSelectedChecklist={setSelectedChecklist}
-        />
-        <div className="divider"></div>
-        {isAdminLoggedIn ? (
-          <AdminView
+        {/* Left pane — hidden on mobile when content tab active */}
+        <div className={`left-pane-wrapper ${mobileTab === 'list' ? 'mobile-active' : 'mobile-hidden'}`}>
+          <ChecklistView
+            checklists={checklists}
+            loading={loading}
             selectedChecklist={selectedChecklist}
-            rawCloudData={checklists}
+            setSelectedChecklist={handleSelectChecklist}
           />
-        ) : (
-          <FillChecklistView selectedChecklist={selectedChecklist} />
-        )}
+        </div>
+
+        <div className="divider desktop-only"></div>
+
+        {/* Right pane — hidden on mobile when list tab active */}
+        <div className={`right-pane-wrapper ${mobileTab === 'content' ? 'mobile-active' : 'mobile-hidden'}`}>
+          {isAdminLoggedIn ? (
+            <AdminView
+              selectedChecklist={selectedChecklist}
+              rawCloudData={checklists}
+            />
+          ) : (
+            <FillChecklistView selectedChecklist={selectedChecklist} />
+          )}
+        </div>
       </div>
+
+      {/* ── Mobile Bottom Tab Bar ── */}
+      <nav className="mobile-bottom-nav glass-panel">
+        <button
+          className={`mobile-nav-btn ${mobileTab === 'list' ? 'active' : ''}`}
+          onClick={() => setMobileTab('list')}
+        >
+          <span className="mobile-nav-icon">📋</span>
+          <span className="mobile-nav-label">Checklists</span>
+          {checklists.length > 0 && (
+            <span className="mobile-nav-badge">{checklists.length}</span>
+          )}
+        </button>
+
+        <button
+          className={`mobile-nav-btn ${mobileTab === 'content' ? 'active' : ''}`}
+          onClick={() => setMobileTab('content')}
+        >
+          <span className="mobile-nav-icon">{isAdminLoggedIn ? '🛠️' : '✍️'}</span>
+          <span className="mobile-nav-label">{isAdminLoggedIn ? 'Admin' : 'Fill Form'}</span>
+        </button>
+      </nav>
+
+      {/* ── PWA Install Prompt ── */}
+      <PWAInstallPrompt />
     </>
   );
 }

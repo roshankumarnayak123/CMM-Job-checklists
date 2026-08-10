@@ -1642,13 +1642,367 @@
 .checklist-card:nth-child(10) { animation-delay: 0.29s; }
 
 /* ═══════════════════════════════════════════════════════════
-   RESPONSIVE
+   MOBILE LAYOUT WRAPPERS
 ═══════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
-  .app-container { flex-direction: column; }
-  .divider       { width: 100%; height: 1px; }
+.left-pane-wrapper,
+.right-pane-wrapper {
+  display: contents; /* transparent on desktop — children lay out normally */
+}
+
+/* ── Theme toggle inline (in header, for mobile) ── */
+.theme-toggle-inline {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 1rem;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  transition: var(--transition-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.theme-toggle-inline:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: var(--border-accent);
+}
+
+/* ── Mobile bottom nav — hidden on desktop ── */
+.mobile-bottom-nav { display: none; }
+
+/* ── Keep old floating theme toggle visible on desktop ── */
+.theme-toggle { display: flex; }
+
+.desktop-only { display: block; }
+
+/* ═══════════════════════════════════════════════════════════
+   STAGGER DELAYS — CHECKLIST CARDS
+═══════════════════════════════════════════════════════════ */
+.checklist-card:nth-child(1)  { animation-delay: 0.02s; }
+.checklist-card:nth-child(2)  { animation-delay: 0.05s; }
+.checklist-card:nth-child(3)  { animation-delay: 0.08s; }
+.checklist-card:nth-child(4)  { animation-delay: 0.11s; }
+.checklist-card:nth-child(5)  { animation-delay: 0.14s; }
+.checklist-card:nth-child(6)  { animation-delay: 0.17s; }
+.checklist-card:nth-child(7)  { animation-delay: 0.20s; }
+.checklist-card:nth-child(8)  { animation-delay: 0.23s; }
+.checklist-card:nth-child(9)  { animation-delay: 0.26s; }
+.checklist-card:nth-child(10) { animation-delay: 0.29s; }
+
+/* ═══════════════════════════════════════════════════════════
+   PWA INSTALL PROMPT
+═══════════════════════════════════════════════════════════ */
+.pwa-install-banner {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  max-width: 400px;
+  margin: 0 auto;
+  background: rgba(13, 10, 31, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--border-accent);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 20px var(--accent-glow);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.pwa-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.pwa-banner-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TABLET  (≤ 900px)
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
   .left-pane, .right-pane { padding: 1rem; }
-  .top-header { padding: 0 1rem; }
+  .signatures-grid { grid-template-columns: 1fr !important; }
+  .dashboard-header { flex-wrap: wrap; gap: 0.6rem; }
+  .live-clock { font-size: 0.72rem; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE  (≤ 640px)  — full overhaul
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  /* ── Wrappers become proper flex children ── */
+  .left-pane-wrapper,
+  .right-pane-wrapper {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 56px;                     /* below header */
+    left: 0;
+    right: 0;
+    bottom: 64px;                  /* above bottom nav */
+    overflow: hidden;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+  }
+
+  .left-pane-wrapper.mobile-active,
+  .right-pane-wrapper.mobile-active {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+    z-index: 2;
+  }
+
+  .left-pane-wrapper.mobile-hidden,
+  .right-pane-wrapper.mobile-hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(20px);
+    z-index: 1;
+  }
+
+  /* ── app-container needs relative positioning to contain absolute panes ── */
+  .app-container {
+    position: relative;
+    height: 100vh;
+  }
+
+  /* ── Panes fill the wrapper ── */
+  .left-pane,
+  .right-pane {
+    flex: 1;
+    height: 100%;
+    padding: 0.85rem;
+    padding-bottom: 0.5rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Right pane already has padding-top for header; keep it ── */
+  .right-pane {
+    padding-top: calc(56px + 0.75rem);
+  }
+
+  /* ── Hide desktop divider ── */
+  .desktop-only { display: none !important; }
+
+  /* ── Header ── */
+  .top-header {
+    padding: 0 0.85rem;
+    height: 56px;
+  }
+
+  .app-logo-text { font-size: 0.92rem; }
+  .app-logo-icon { width: 28px; height: 28px; font-size: 0.88rem; }
+
   .live-clock { display: none; }
-  .dashboard-header { flex-direction: column; align-items: flex-start; }
+  .sync-label { display: none; }
+
+  .header-actions { gap: 0.35rem; }
+
+  /* ── Hide old floating theme toggle on mobile ── */
+  .theme-toggle { display: none !important; }
+
+  /* ── Ensure theme-toggle-inline visible ── */
+  .theme-toggle-inline { display: flex; }
+
+  /* ── Admin login button — shorter on mobile ── */
+  .admin-login-btn { padding: 0.4rem 0.65rem; font-size: 0.75rem; }
+  .admin-btn-text  { display: none; }
+
+  /* ── Bottom nav ── */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    padding: 0 1rem;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    border-top: 1px solid var(--border);
+    background: rgba(5, 11, 24, 0.92);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    z-index: 400;
+    align-items: center;
+    justify-content: space-around;
+    gap: 0.5rem;
+  }
+
+  .mobile-nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    background: none;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 0.5rem 0.25rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-family: var(--font-display);
+    transition: var(--transition-base);
+    position: relative;
+    min-height: 50px;
+  }
+
+  .mobile-nav-btn.active {
+    color: var(--accent-hover);
+  }
+
+  .mobile-nav-btn.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 15%;
+    right: 15%;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--neon-cyan));
+    border-radius: 0 0 var(--radius-full) var(--radius-full);
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
+
+  .mobile-nav-icon  { font-size: 1.3rem; line-height: 1; }
+  .mobile-nav-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+
+  .mobile-nav-badge {
+    position: absolute;
+    top: 4px;
+    right: calc(50% - 18px);
+    min-width: 17px;
+    height: 17px;
+    background: var(--accent);
+    border-radius: 999px;
+    font-size: 0.6rem;
+    font-weight: 800;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    font-family: var(--font-display);
+  }
+
+  /* ── Touch targets — all interactive elements ≥ 44px ── */
+  button, a, input, select, textarea {
+    min-height: 44px;
+  }
+  input[type="checkbox"], input[type="radio"] { min-height: unset; }
+
+  /* ── Cards — remove 3D tilt on touch (performance + UX) ── */
+  .checklist-card { transform: none !important; }
+
+  /* ── Search box ── */
+  .search-header { padding: 0.85rem; }
+  .search-bar input { font-size: 1rem; } /* prevent iOS zoom-in on focus */
+
+  /* ── Checklist container scrollable ── */
+  .checklist-container { padding-bottom: 0.5rem; }
+
+  /* ── Dashboard header ── */
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.65rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .dashboard-header h2 { font-size: 1.15rem; }
+  .dashboard-header > div { flex-wrap: wrap; gap: 0.4rem; width: 100%; }
+
+  /* ── Buttons in header bar — full width on mobile ── */
+  .dashboard-header .primary-btn,
+  .dashboard-header .secondary-btn {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    font-size: 0.78rem;
+    padding: 0.55rem 0.6rem;
+  }
+
+  /* ── Modals — full-screen on mobile ── */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
+    max-height: 90vh;
+    padding-bottom: env(safe-area-inset-bottom, 8px);
+  }
+
+  /* ── Checklist details card ── */
+  .checklist-details { padding: 1rem; }
+  .details-header    { flex-direction: column; gap: 0.5rem; }
+
+  /* ── Form sections ── */
+  .form-section { padding: 0.1rem 0; }
+
+  /* ── Signature blocks — single column ── */
+  .signatures-grid { grid-template-columns: 1fr !important; gap: 1rem; }
+
+  /* ── Submit button full width ── */
+  .submit-btn { width: 100% !important; }
+
+  /* ── Step indicator — compact ── */
+  .step-indicator { gap: 0.3rem; }
+  .step-dot       { width: 26px; height: 26px; font-size: 0.7rem; }
+
+  /* ── Success screen ── */
+  .success-screen { padding: 2rem 1.25rem; margin: 0.5rem; }
+  .tracking-code  { font-size: 0.8rem; letter-spacing: 0.08em; word-break: break-all; }
+
+  /* ── Checkpoint editor items ── */
+  .checkpoint-editor-item { padding: 0.75rem; }
+
+  /* ── Submission cards ── */
+  .submission-header { flex-direction: column; gap: 0.5rem; }
+
+  /* ── Signature pad canvas — allow natural width ── */
+  .sig-pad-wrapper canvas { touch-action: none; }
+
+  /* ── Usage dashboard cards ── */
+  .usage-value { font-size: 1.6rem; }
+
+  /* ── Action buttons ── */
+  .action-buttons { flex-direction: column; gap: 0.5rem; }
+  .action-btn     { width: 100%; justify-content: center; }
+
+  /* ── Reduce 3D background shapes on mobile for performance ── */
+  .shape-3d:nth-child(n+9) { display: none; }
+
+  /* ── Admin panel submissions grid ── */
+  .signatures-grid { gap: 0.75rem; }
+
+  /* ── Pane title / subtitle ── */
+  .pane-title    { font-size: 1.25rem; }
+  .pane-subtitle { font-size: 0.75rem; }
+  
+  /* ── PWA Banner ── */
+  .pwa-install-banner {
+    bottom: calc(64px + 20px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ── Very small screens (iPhone SE etc.) ── */
+@media (max-width: 375px) {
+  .top-header { padding: 0 0.6rem; }
+  .app-logo-text { font-size: 0.82rem; }
+  .left-pane, .right-pane { padding: 0.65rem; }
+  .modal-content { border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important; }
 }
