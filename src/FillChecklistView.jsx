@@ -24,7 +24,7 @@ function StepIndicator({ currentStep, totalSteps }) {
   );
 }
 
-export default function FillChecklistView({ selectedChecklist }) {
+export default function FillChecklistView({ selectedChecklist, onBack }) {
   const [fillerName, setFillerName]         = useState('');
   const [notes, setNotes]                   = useState('');
   const [isSubmitting, setIsSubmitting]     = useState(false);
@@ -207,13 +207,18 @@ export default function FillChecklistView({ selectedChecklist }) {
   /* ── Main form ── */
   return (
     <div className="right-pane dashboard-pane animate-slide-in">
-      <div className="dashboard-header">
+      <div className="dashboard-header" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h2>Fill Checklist</h2>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem', fontFamily: 'var(--font-display)' }}>
             Complete all sections and sign to submit.
           </p>
         </div>
+        {onBack && (
+          <button className="secondary-btn mobile-only" onClick={onBack} style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem' }}>
+            ← Back
+          </button>
+        )}
       </div>
 
       <StepIndicator currentStep={currentStep} totalSteps={totalSteps} />

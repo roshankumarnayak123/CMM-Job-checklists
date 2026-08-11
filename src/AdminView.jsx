@@ -662,6 +662,11 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
       <div className="dashboard-header">
         <h2>Admin Dashboard</h2>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          {selectedChecklist && (
+            <button className="secondary-btn glass-panel" onClick={() => setSelectedChecklist && setSelectedChecklist(null)}>
+              🏠 Dashboard
+            </button>
+          )}
           <button className="primary-btn" onClick={() => setShowCreateModal(true)}>
             ✨ New Checklist
           </button>

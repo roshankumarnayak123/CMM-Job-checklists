@@ -218,7 +218,10 @@ function App() {
               rawCloudData={checklists}
             />
           ) : (
-            <FillChecklistView selectedChecklist={selectedChecklist} />
+            <FillChecklistView 
+              selectedChecklist={selectedChecklist} 
+              onBack={() => setMobileTab('list')}
+            />
           )}
         </div>
       </div>

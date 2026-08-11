@@ -2169,6 +2169,12 @@
 .checklist-form .submit-btn { width: 100%; }
 .review-section .submit-btn  { width: 100%; }
 
+.mobile-only { display: none; }
+
+@media (max-width: 800px) {
+  .mobile-only { display: block; }
+}
+
 /* ═══════════════════════════════════════════════════════════
    ADMIN DASHBOARD OVERVIEW
 ═══════════════════════════════════════════════════════════ */
