@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { db } from './firebase';
+import { db, storage } from './firebase';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import SignatureCanvas from 'react-signature-canvas';
 
 export default function ReviewPage({ tokenId }) {
   const [status, setStatus] = useState('loading'); // loading | expired | already_signed | ready | submitting | success | error
   const [tokenData, setTokenData] = useState(null);
-  const [ammData, setAmmData] = useState({ name: '', designation: '', date: '' });
+  const [ammData, setAmmData] = useState({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
   const ammSigRef = useRef();
   const [submitError, setSubmitError] = useState('');
 
@@ -51,12 +52,17 @@ export default function ReviewPage({ tokenId }) {
     setSubmitError('');
     setStatus('submitting');
     try {
-      const ref = doc(db, 'review_tokens', tokenId);
+      const ammSigDataUrl = ammSigRef.current.getTrimmedCanvas().toDataURL('image/png');
+      const sigRef = ref(storage, `signatures/${tokenData.uniqueCode || tokenId}_amm.png`);
+      await uploadString(sigRef, ammSigDataUrl, 'data_url');
+      const ammSigUrl = await getDownloadURL(sigRef);
+
+      const refDoc = doc(db, 'review_tokens', tokenId);
       const ammSignature = {
         ...ammData,
-        signatureDataUrl: ammSigRef.current.getTrimmedCanvas().toDataURL('image/png'),
+        signatureDataUrl: ammSigUrl,
       };
-      await updateDoc(ref, {
+      await updateDoc(refDoc, {
         status: 'completed',
         ammSignature,
         completedAt: serverTimestamp(),

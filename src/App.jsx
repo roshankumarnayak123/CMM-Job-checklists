@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import ChecklistView from './ChecklistView';
-import AdminView from './AdminView';
+const AdminView = lazy(() => import('./AdminView'));
 import FillChecklistView from './FillChecklistView';
 import ReviewPage from './ReviewPage';
 import PWAInstallPrompt from './PWAInstallPrompt';
@@ -8,10 +8,6 @@ import './App.css';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
 import { collection, onSnapshot } from 'firebase/firestore';
-
-// Detect ?review=<tokenId> in URL
-const urlParams = new URLSearchParams(window.location.search);
-const reviewTokenId = urlParams.get('review');
 
 // Live clock component
 function LiveClock() {
@@ -34,6 +30,8 @@ function LiveClock() {
 }
 
 function App() {
+  const reviewTokenId = useMemo(() => new URLSearchParams(window.location.search).get('review'), []);
+  const [authResolved, setAuthResolved] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [selectedChecklist, setSelectedChecklist] = useState(null);
   const [checklists, setChecklists] = useState([]);
@@ -48,10 +46,13 @@ function App() {
 
   // Mouse parallax for aurora & 3D background
   const handleMouseMove = useCallback((e) => {
-    const x = (e.clientX / window.innerWidth  - 0.5) * 20;
-    const y = (e.clientY / window.innerHeight - 0.5) * 20;
-    document.documentElement.style.setProperty('--mouseX', `${x}deg`);
-    document.documentElement.style.setProperty('--mouseY', `${y}deg`);
+    if (document.hidden) return;
+    requestAnimationFrame(() => {
+      const x = (e.clientX / window.innerWidth  - 0.5) * 20;
+      const y = (e.clientY / window.innerHeight - 0.5) * 20;
+      document.documentElement.style.setProperty('--mouseX', `${x}deg`);
+      document.documentElement.style.setProperty('--mouseY', `${y}deg`);
+    });
   }, []);
 
   useEffect(() => {
@@ -62,6 +63,7 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setIsAdminLoggedIn(!!user);
+      setAuthResolved(true);
       if (user) setShowLoginModal(false);
     });
     return () => unsubscribe();
@@ -98,9 +100,13 @@ function App() {
     setMobileTab('content');
   };
 
-  // ── If URL has ?review=tokenId, show ReviewPage (no login needed) ──
+  // ── Wait for auth to resolve before showing main UI, unless it's a review page ──
   if (reviewTokenId) {
     return <ReviewPage tokenId={reviewTokenId} />;
+  }
+
+  if (!authResolved) {
+    return <div className="background-3d" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'white' }}>Loading...</div>;
   }
 
   return (
@@ -215,11 +221,13 @@ function App() {
         {/* Right pane — hidden on mobile when list tab active */}
         <div className={`right-pane-wrapper ${mobileTab === 'content' ? 'mobile-active' : 'mobile-hidden'}`}>
           {isAdminLoggedIn ? (
-            <AdminView
-              selectedChecklist={selectedChecklist}
-              setSelectedChecklist={handleSelectChecklist}
-              rawCloudData={checklists}
-            />
+            <Suspense fallback={<div className="spinner-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><span className="spinner"></span> Loading Admin...</div>}>
+              <AdminView
+                selectedChecklist={selectedChecklist}
+                setSelectedChecklist={handleSelectChecklist}
+                rawCloudData={checklists}
+              />
+            </Suspense>
           ) : (
             <FillChecklistView 
               selectedChecklist={selectedChecklist} 

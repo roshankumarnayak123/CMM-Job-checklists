@@ -1,0 +1,14 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /signatures/{allPaths=**} {
+      // Anyone can upload a signature (during form fill)
+      allow write: if true;
+      // Anyone can read it (needed for PDF generation/review)
+      allow read: if true;
+    }
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

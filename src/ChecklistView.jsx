@@ -22,10 +22,12 @@ function SkeletonCard() {
 export default function ChecklistView({ checklists, loading, selectedChecklist, setSelectedChecklist }) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredChecklists = checklists.filter(c =>
-    c.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredChecklists = [...checklists]
+    .filter(c =>
+      c.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => (a.title || '').localeCompare(b.title || ''));
 
   // 3D tilt effect on card hover
   const handleCardMouseMove = (e, el) => {

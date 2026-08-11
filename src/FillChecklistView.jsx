@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { db } from './firebase';
+import { db, storage } from './firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import SignatureCanvas from 'react-signature-canvas';
 import ShareLinkModal from './ShareLinkModal';
 
@@ -30,7 +31,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
   const [isSubmitting, setIsSubmitting]     = useState(false);
   const [submittedCode, setSubmittedCode]   = useState(null);
   const [checkpointValues, setCheckpointValues] = useState({});
-  const [cmmData, setCmmData] = useState({ name: '', designation: '', date: '' });
+  const [cmmData, setCmmData] = useState({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
   const cmmSigRef = useRef();
   const [currentStep, setCurrentStep]       = useState(0);
   const totalSteps = 3;
@@ -44,18 +45,16 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     setNotes('');
     setSubmittedCode(null);
     setCheckpointValues({});
-    setCmmData({ name: '', designation: '', date: '' });
+    setCmmData({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
     setCurrentStep(0);
     setShareTokenId(null);
-
-    let timer;
-    timer = setTimeout(() => {
-      if (cmmSigRef.current) cmmSigRef.current.clear();
-    }, 100);
-    return () => clearTimeout(timer);
   }, [selectedChecklist]);
 
-  const generateCode = () => Math.floor(1000000000 + Math.random() * 9000000000).toString();
+  const generateCode = () => {
+    // Generate a short 10-character alphanumeric code for easy sharing
+    return crypto.randomUUID().split('-')[0].toUpperCase() + 
+           crypto.randomUUID().split('-')[1].toUpperCase();
+  };
 
   const handleCheckpointChange = (id, value) =>
     setCheckpointValues(prev => ({ ...prev, [id]: value }));
@@ -102,6 +101,12 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     };
 
     try {
+      if (!cmmSigRef.current?.isEmpty()) {
+        const sigDataUrl = cmmSigRef.current?.getTrimmedCanvas().toDataURL('image/png');
+        const sigRef = ref(storage, `signatures/${code}_cmm_draft.png`);
+        await uploadString(sigRef, sigDataUrl, 'data_url');
+        payload.cmmSignature.signatureDataUrl = await getDownloadURL(sigRef);
+      }
       const docRef = await addDoc(collection(db, 'review_tokens'), payload);
       setShareTokenId(docRef.id);
     } catch (err) {
@@ -116,20 +121,44 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
   const handleDirectSubmit = async (e) => {
     e.preventDefault();
     if (!selectedChecklist) return;
+    
+    // Validate required fields
+    if (!fillerName.trim()) {
+      alert("Please enter your name (Filled By).");
+      return;
+    }
+    if (!cmmData.name.trim() || !cmmData.designation.trim() || !cmmData.date) {
+      alert("Please fill in all CMM signature details.");
+      return;
+    }
+    if (cmmSigRef.current?.isEmpty()) {
+      alert("Please draw your signature.");
+      return;
+    }
+
     setIsSubmitting(true);
     const code = generateCode();
 
     try {
+      let cmmSigUrl = null;
+      if (!cmmSigRef.current?.isEmpty()) {
+        const sigDataUrl = cmmSigRef.current?.getTrimmedCanvas().toDataURL('image/png');
+        const sigRef = ref(storage, `signatures/${code}_cmm.png`);
+        await uploadString(sigRef, sigDataUrl, 'data_url');
+        cmmSigUrl = await getDownloadURL(sigRef);
+      }
+
       await addDoc(collection(db, 'filled_checklists'), {
         ...buildPayload(code),
         submittedAt: serverTimestamp(),
         signatures: {
           cmm: {
             ...cmmData,
-            signatureDataUrl: cmmSigRef.current?.isEmpty() ? null : cmmSigRef.current?.getTrimmedCanvas().toDataURL('image/png')
+            signatureDataUrl: cmmSigUrl
           },
           amm: null
-        }
+        },
+        reviewMode: 'direct'
       });
       setSubmittedCode(code);
     } catch (err) {
@@ -145,7 +174,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     setNotes('');
     setSubmittedCode(null);
     setCheckpointValues({});
-    setCmmData({ name: '', designation: '', date: '' });
+    setCmmData({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
     setCurrentStep(0);
     setShareTokenId(null);
     if (cmmSigRef.current) cmmSigRef.current.clear();
@@ -186,7 +215,20 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
             Your signed checklist has been recorded. Save your tracking code:
           </p>
 
-          <div className="tracking-code">{submittedCode}</div>
+          <div className="tracking-code" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+            <span>{submittedCode}</span>
+            <button
+              className="copy-btn"
+              onClick={() => {
+                navigator.clipboard.writeText(submittedCode);
+                alert("Copied to clipboard!");
+              }}
+              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginLeft: '0.5rem' }}
+              title="Copy Tracking Code"
+            >
+              📋 Copy
+            </button>
+          </div>
 
           <p style={{ marginTop: '1.5rem', fontSize: '0.8rem', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
             Present this code to your supervisor for verification.
@@ -315,6 +357,19 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                           ))}
                         </select>
                       )}
+                      {cp.type === 'checkbox' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={val === 'true'}
+                            onChange={e => handleCheckpointChange(cp.id, e.target.checked ? 'true' : 'false')}
+                            style={{ width: '1.25rem', height: '1.25rem', cursor: 'pointer' }}
+                          />
+                          <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            {val === 'true' ? 'Yes / True' : 'No / False'}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -367,11 +422,12 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
               </div>
               <div className="signature-pad-container">
                 <label>Draw Signature <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-                <div className="sig-pad-wrapper">
+                <div className="sig-pad-wrapper" style={{ width: '100%', maxWidth: '500px' }}>
                   <SignatureCanvas
+                    key={selectedChecklist.id}
                     ref={cmmSigRef}
                     penColor="#1e40af"
-                    canvasProps={{ width: 500, height: 140, className: 'sigCanvas', style: { width: '100%', height: '140px' } }}
+                    canvasProps={{ className: 'sigCanvas', style: { width: '100%', height: '140px', touchAction: 'none' } }}
                   />
                   <button type="button" onClick={() => cmmSigRef.current?.clear()} className="sig-clear-btn">Clear</button>
                   <div className="sig-placeholder-line"></div>
