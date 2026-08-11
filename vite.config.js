@@ -3,7 +3,10 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
+const base = '/CMM-Job-checklists/'
+
 export default defineConfig({
+  base,
   plugins: [
     react(),
     VitePWA({
@@ -24,35 +27,35 @@ export default defineConfig({
         display: 'standalone',
         display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
         orientation: 'any',
-        scope: '/',
-        start_url: '/?pwa=1',
+        scope: '/CMM-Job-checklists/',
+        start_url: '/CMM-Job-checklists/?pwa=1',
         lang: 'en',
         categories: ['productivity', 'utilities', 'business'],
         id: 'cmm-checklist-app',
 
         icons: [
-          { src: '/icon-72x72.svg',             sizes: '72x72',     type: 'image/svg+xml' },
-          { src: '/icon-96x96.svg',             sizes: '96x96',     type: 'image/svg+xml' },
-          { src: '/icon-128x128.svg',           sizes: '128x128',   type: 'image/svg+xml' },
-          { src: '/icon-144x144.svg',           sizes: '144x144',   type: 'image/svg+xml' },
-          { src: '/icon-152x152.svg',           sizes: '152x152',   type: 'image/svg+xml' },
-          { src: '/icon-192x192.svg',           sizes: '192x192',   type: 'image/svg+xml', purpose: 'any' },
-          { src: '/icon-384x384.svg',           sizes: '384x384',   type: 'image/svg+xml' },
-          { src: '/icon-512x512.svg',           sizes: '512x512',   type: 'image/svg+xml', purpose: 'any' },
-          { src: '/icon-maskable-512x512.svg',  sizes: '512x512',   type: 'image/svg+xml', purpose: 'maskable' },
-          { src: '/apple-touch-icon.svg',       sizes: '180x180',   type: 'image/svg+xml' },
+          { src: '/CMM-Job-checklists/icon-72x72.svg',             sizes: '72x72',     type: 'image/svg+xml' },
+          { src: '/CMM-Job-checklists/icon-96x96.svg',             sizes: '96x96',     type: 'image/svg+xml' },
+          { src: '/CMM-Job-checklists/icon-128x128.svg',           sizes: '128x128',   type: 'image/svg+xml' },
+          { src: '/CMM-Job-checklists/icon-144x144.svg',           sizes: '144x144',   type: 'image/svg+xml' },
+          { src: '/CMM-Job-checklists/icon-152x152.svg',           sizes: '152x152',   type: 'image/svg+xml' },
+          { src: '/CMM-Job-checklists/icon-192x192.svg',           sizes: '192x192',   type: 'image/svg+xml', purpose: 'any' },
+          { src: '/CMM-Job-checklists/icon-384x384.svg',           sizes: '384x384',   type: 'image/svg+xml' },
+          { src: '/CMM-Job-checklists/icon-512x512.svg',           sizes: '512x512',   type: 'image/svg+xml', purpose: 'any' },
+          { src: '/CMM-Job-checklists/icon-maskable-512x512.svg',  sizes: '512x512',   type: 'image/svg+xml', purpose: 'maskable' },
+          { src: '/CMM-Job-checklists/apple-touch-icon.svg',       sizes: '180x180',   type: 'image/svg+xml' },
         ],
 
         screenshots: [
           {
-            src: '/icon-512x512.svg',
+            src: '/CMM-Job-checklists/icon-512x512.svg',
             sizes: '512x512',
             type: 'image/svg+xml',
             form_factor: 'wide',
             label: 'CMM Checklist Desktop View'
           },
           {
-            src: '/icon-512x512.svg',
+            src: '/CMM-Job-checklists/icon-512x512.svg',
             sizes: '512x512',
             type: 'image/svg+xml',
             form_factor: 'narrow',
@@ -65,8 +68,8 @@ export default defineConfig({
             name: 'Fill a Checklist',
             short_name: 'Fill',
             description: 'Start filling a CMM checklist',
-            url: '/?tab=fill',
-            icons: [{ src: '/icon-192x192.svg', sizes: '192x192', type: 'image/svg+xml' }]
+            url: '/CMM-Job-checklists/?tab=fill',
+            icons: [{ src: '/CMM-Job-checklists/icon-192x192.svg', sizes: '192x192', type: 'image/svg+xml' }]
           }
         ],
 

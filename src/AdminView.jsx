@@ -61,6 +61,7 @@ function generatePDFReport(sub) {
     .report-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 3px solid #7c3aed; margin-bottom: 28px; }
     .company-logo { font-size: 21px; font-weight: 800; color: #7c3aed; letter-spacing: -0.02em; }
     .company-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
+    .checklist-title { font-size: 18px; font-weight: 800; color: #1e293b; margin-top: 12px; }
     .code-block { text-align: right; }
     .code-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px; }
     .code-value { font-family: 'Courier New', monospace; font-size: 14px; font-weight: 700; color: #7c3aed; background: #f3f0ff; border: 1px solid #ddd6fe; padding: 6px 14px; border-radius: 8px; letter-spacing: 0.12em; display: inline-block; }
@@ -128,6 +129,7 @@ function generatePDFReport(sub) {
       <div>
         <div class="company-logo">⚙️ CMM Checklist</div>
         <div class="company-sub">Central Mechanical Maintenance System</div>
+        <div class="checklist-title">${escape(sub.checklistTitle || 'Checklist Report')}</div>
       </div>
       <div class="code-block">
         <div class="code-label">Tracking Code</div>
@@ -137,7 +139,6 @@ function generatePDFReport(sub) {
 
     <!-- Meta -->
     <div class="meta-card">
-      <h1>${escape(sub.checklistTitle || 'Checklist Report')}</h1>
       <div class="meta-grid">
         <div class="meta-item">
           <span class="meta-label">Filled By</span>
@@ -146,14 +147,6 @@ function generatePDFReport(sub) {
         <div class="meta-item">
           <span class="meta-label">Submitted At</span>
           <span class="meta-value">${formattedDate}</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Template ID</span>
-          <span class="meta-value mono">${escape(sub.checklistId || 'N/A')}</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Document ID</span>
-          <span class="meta-value mono">${escape((sub.id || '').slice(0, 14))}…</span>
         </div>
       </div>
     </div>
