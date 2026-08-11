@@ -501,7 +501,7 @@ function EditChecklistModal({ showEditModal, setShowEditModal, selectedChecklist
 /* ════════════════════════════════════════════════════
    SUBMISSION CARD (with PDF export)
 ════════════════════════════════════════════════════ */
-function SubmissionCard({ sub }) {
+function SubmissionCard({ sub, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   const date = sub.submittedAt ? new Date(sub.submittedAt.toDate()).toLocaleString() : 'Just now';
 
@@ -522,6 +522,9 @@ function SubmissionCard({ sub }) {
           <div style={{ display: 'flex', gap: '0.4rem' }}>
             <button className="pdf-btn" onClick={() => generatePDFReport(sub)}>
               📄 PDF
+            </button>
+            <button className="pdf-btn" onClick={() => onDelete(sub)} style={{ color: 'var(--neon-red)', borderColor: 'rgba(255, 60, 60, 0.3)' }}>
+              🗑️ Delete
             </button>
             <button
               onClick={() => setExpanded(e => !e)}
@@ -624,6 +627,18 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
     }
   };
 
+  const handleDeleteSubmission = async (sub) => {
+    const confirmDelete = window.confirm(`Are you sure you want to delete submission ${sub.uniqueCode} (${sub.checklistTitle})?`);
+    if (!confirmDelete) return;
+
+    try {
+      await deleteDoc(doc(db, 'filled_checklists', sub.id));
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete submission.');
+    }
+  };
+
   /* ── Submissions view ── */
   if (showSubmissions) {
     return (
@@ -643,7 +658,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Filled checklists will appear here.</p>
             </div>
           ) : (
-            submissions.map(sub => <SubmissionCard key={sub.id} sub={sub} />)
+            submissions.map(sub => <SubmissionCard key={sub.id} sub={sub} onDelete={handleDeleteSubmission} />)
           )}
         </div>
       </div>
@@ -794,9 +809,14 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
                       ? new Date(typeof sub.submittedAt.toDate === 'function' ? sub.submittedAt.toDate() : sub.submittedAt).toLocaleDateString() 
                       : 'Just now'}
                   </div>
-                  <button className="secondary-btn" onClick={() => generatePDFReport(sub)} style={{ width: '100%', padding: '0.4rem', fontSize: '0.75rem' }}>
-                    View PDF
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.4rem', marginTop: 'auto' }}>
+                    <button className="secondary-btn" onClick={() => generatePDFReport(sub)} style={{ flex: 1, padding: '0.4rem', fontSize: '0.75rem' }}>
+                      PDF
+                    </button>
+                    <button className="secondary-btn" onClick={() => handleDeleteSubmission(sub)} style={{ padding: '0.4rem', fontSize: '0.75rem', color: 'var(--neon-red)' }}>
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
