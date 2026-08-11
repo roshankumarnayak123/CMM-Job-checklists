@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { db } from './firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import SignatureCanvas from 'react-signature-canvas';
+import ShareLinkModal from './ShareLinkModal';
 
 // Hex-style step indicator
 function StepIndicator({ currentStep, totalSteps }) {
@@ -30,11 +31,13 @@ export default function FillChecklistView({ selectedChecklist }) {
   const [submittedCode, setSubmittedCode]   = useState(null);
   const [checkpointValues, setCheckpointValues] = useState({});
   const [cmmData, setCmmData] = useState({ name: '', designation: '', date: '' });
-  const [ammData, setAmmData] = useState({ name: '', designation: '', date: '' });
   const cmmSigRef = useRef();
-  const ammSigRef = useRef();
   const [currentStep, setCurrentStep]       = useState(0);
   const totalSteps = 3;
+
+  // Share link modal state
+  const [shareTokenId, setShareTokenId]     = useState(null);
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
 
   useEffect(() => {
     setFillerName('');
@@ -42,13 +45,12 @@ export default function FillChecklistView({ selectedChecklist }) {
     setSubmittedCode(null);
     setCheckpointValues({});
     setCmmData({ name: '', designation: '', date: '' });
-    setAmmData({ name: '', designation: '', date: '' });
     setCurrentStep(0);
+    setShareTokenId(null);
 
     let timer;
     timer = setTimeout(() => {
       if (cmmSigRef.current) cmmSigRef.current.clear();
-      if (ammSigRef.current) ammSigRef.current.clear();
     }, 100);
     return () => clearTimeout(timer);
   }, [selectedChecklist]);
@@ -58,38 +60,74 @@ export default function FillChecklistView({ selectedChecklist }) {
   const handleCheckpointChange = (id, value) =>
     setCheckpointValues(prev => ({ ...prev, [id]: value }));
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedChecklist) return;
-    setIsSubmitting(true);
-    const code = generateCode();
-
+  const buildPayload = (code) => {
     const formattedCheckpoints = (selectedChecklist.checkpoints || []).map(cp => ({
       label: cp.label,
       value: checkpointValues[cp.id] || ''
     }));
 
-    const signatures = {
-      cmm: {
-        ...cmmData,
-        signatureDataUrl: cmmSigRef.current?.isEmpty() ? null : cmmSigRef.current?.getTrimmedCanvas().toDataURL('image/png')
-      },
-      amm: {
-        ...ammData,
-        signatureDataUrl: ammSigRef.current?.isEmpty() ? null : ammSigRef.current?.getTrimmedCanvas().toDataURL('image/png')
-      }
+    const cmmSignature = {
+      ...cmmData,
+      signatureDataUrl: cmmSigRef.current?.isEmpty() ? null : cmmSigRef.current?.getTrimmedCanvas().toDataURL('image/png')
+    };
+
+    return {
+      checklistId:         selectedChecklist.id,
+      checklistTitle:      selectedChecklist.title,
+      fillerName:          fillerName.trim() || 'Anonymous',
+      notes:               notes.trim(),
+      uniqueCode:          code,
+      checkpointResponses: formattedCheckpoints,
+      cmmSignature,
+    };
+  };
+
+  /* ── Generate Review Link (saves draft, opens share modal) ── */
+  const handleGenerateLink = async (e) => {
+    e.preventDefault();
+    if (!selectedChecklist) return;
+    setIsGeneratingLink(true);
+
+    const code = generateCode();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+    const payload = {
+      ...buildPayload(code),
+      status: 'pending_review',
+      createdAt: serverTimestamp(),
+      expiresAt,
+      ammSignature: null,
     };
 
     try {
+      const docRef = await addDoc(collection(db, 'review_tokens'), payload);
+      setShareTokenId(docRef.id);
+    } catch (err) {
+      console.error('Error generating review link:', err);
+      alert("Failed to generate link. Check Firestore rules allow writes to 'review_tokens'.");
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
+
+  /* ── Direct Submit (no review link, both signatures in-person) ── */
+  const handleDirectSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedChecklist) return;
+    setIsSubmitting(true);
+    const code = generateCode();
+
+    try {
       await addDoc(collection(db, 'filled_checklists'), {
-        checklistId:         selectedChecklist.id,
-        checklistTitle:      selectedChecklist.title,
-        fillerName:          fillerName.trim() || 'Anonymous',
-        notes:               notes.trim(),
-        uniqueCode:          code,
-        submittedAt:         serverTimestamp(),
-        checkpointResponses: formattedCheckpoints,
-        signatures
+        ...buildPayload(code),
+        submittedAt: serverTimestamp(),
+        signatures: {
+          cmm: {
+            ...cmmData,
+            signatureDataUrl: cmmSigRef.current?.isEmpty() ? null : cmmSigRef.current?.getTrimmedCanvas().toDataURL('image/png')
+          },
+          amm: null
+        }
       });
       setSubmittedCode(code);
     } catch (err) {
@@ -106,10 +144,9 @@ export default function FillChecklistView({ selectedChecklist }) {
     setSubmittedCode(null);
     setCheckpointValues({});
     setCmmData({ name: '', designation: '', date: '' });
-    setAmmData({ name: '', designation: '', date: '' });
     setCurrentStep(0);
+    setShareTokenId(null);
     if (cmmSigRef.current) cmmSigRef.current.clear();
-    if (ammSigRef.current) ammSigRef.current.clear();
   };
 
   /* ── Empty state ── */
@@ -195,7 +232,7 @@ export default function FillChecklistView({ selectedChecklist }) {
 
         <div className="section-divider"></div>
 
-        <form onSubmit={handleSubmit} className="checklist-form">
+        <form onSubmit={handleGenerateLink} className="checklist-form">
 
           {/* ── Section 1: Basic Info ── */}
           <div className="form-section" id="section-info">
@@ -293,99 +330,96 @@ export default function FillChecklistView({ selectedChecklist }) {
             </div>
           </div>
 
-          {/* ── Section 3: Signatures ── */}
+          {/* ── Section 3: CMM Signature ── */}
           <div className="form-section" onClick={() => setCurrentStep(s => Math.max(s, 2))}>
             <div className="section-divider"></div>
             <div className="section-label">
               <span className="section-number">3</span>
-              <span>Digital Signatures</span>
+              <span>Your Signature (CMM)</span>
             </div>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', fontFamily: 'var(--font-display)' }}>
-              Both parties must sign below. Fill all fields and draw your signature.
+              Sign below. Area Maintenance will sign after reviewing via the shared link.
             </p>
 
-            <div className="signatures-grid">
-              {/* CMM Signature */}
-              <div className="signature-block">
-                <div className="signature-block-header">
-                  <span className="sig-icon">🏭</span>
-                  <h4>Central Mechanical Maintenance</h4>
-                </div>
-                <div className="input-group">
-                  <label>Name <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-                  <input type="text" placeholder="Full name" value={cmmData.name} onChange={e => setCmmData({ ...cmmData, name: e.target.value })} required className="styled-input" />
-                </div>
-                <div className="input-group">
-                  <label>Designation <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-                  <input type="text" placeholder="e.g., Senior Engineer" value={cmmData.designation} onChange={e => setCmmData({ ...cmmData, designation: e.target.value })} required className="styled-input" />
-                </div>
-                <div className="input-group">
-                  <label>Date <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-                  <input type="date" value={cmmData.date} onChange={e => setCmmData({ ...cmmData, date: e.target.value })} required className="styled-input" />
-                </div>
-                <div className="signature-pad-container">
-                  <label>Draw Signature <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-                  <div className="sig-pad-wrapper">
-                    <SignatureCanvas
-                      ref={cmmSigRef}
-                      penColor="#1e40af"
-                      canvasProps={{ width: 500, height: 140, className: 'sigCanvas', style: { width: '100%', height: '140px' } }}
-                    />
-                    <button type="button" onClick={() => cmmSigRef.current?.clear()} className="sig-clear-btn">Clear</button>
-                    <div className="sig-placeholder-line"></div>
-                  </div>
-                </div>
+            <div className="signature-block">
+              <div className="signature-block-header">
+                <span className="sig-icon">🏭</span>
+                <h4>Central Mechanical Maintenance</h4>
               </div>
-
-              {/* AMM Signature */}
-              <div className="signature-block">
-                <div className="signature-block-header">
-                  <span className="sig-icon">🔧</span>
-                  <h4>Area Mechanical Maintenance</h4>
-                </div>
-                <div className="input-group">
-                  <label>Name <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-                  <input type="text" placeholder="Full name" value={ammData.name} onChange={e => setAmmData({ ...ammData, name: e.target.value })} required className="styled-input" />
-                </div>
-                <div className="input-group">
-                  <label>Designation <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-                  <input type="text" placeholder="e.g., Area Engineer" value={ammData.designation} onChange={e => setAmmData({ ...ammData, designation: e.target.value })} required className="styled-input" />
-                </div>
-                <div className="input-group">
-                  <label>Date <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-                  <input type="date" value={ammData.date} onChange={e => setAmmData({ ...ammData, date: e.target.value })} required className="styled-input" />
-                </div>
-                <div className="signature-pad-container">
-                  <label>Draw Signature <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-                  <div className="sig-pad-wrapper">
-                    <SignatureCanvas
-                      ref={ammSigRef}
-                      penColor="#1e40af"
-                      canvasProps={{ width: 500, height: 140, className: 'sigCanvas', style: { width: '100%', height: '140px' } }}
-                    />
-                    <button type="button" onClick={() => ammSigRef.current?.clear()} className="sig-clear-btn">Clear</button>
-                    <div className="sig-placeholder-line"></div>
-                  </div>
+              <div className="input-group">
+                <label>Name <span style={{ color: 'var(--neon-red)' }}>*</span></label>
+                <input type="text" placeholder="Full name" value={cmmData.name} onChange={e => setCmmData({ ...cmmData, name: e.target.value })} required className="styled-input" />
+              </div>
+              <div className="input-group">
+                <label>Designation <span style={{ color: 'var(--neon-red)' }}>*</span></label>
+                <input type="text" placeholder="e.g., Senior Engineer" value={cmmData.designation} onChange={e => setCmmData({ ...cmmData, designation: e.target.value })} required className="styled-input" />
+              </div>
+              <div className="input-group">
+                <label>Date <span style={{ color: 'var(--neon-red)' }}>*</span></label>
+                <input type="date" value={cmmData.date} onChange={e => setCmmData({ ...cmmData, date: e.target.value })} required className="styled-input" />
+              </div>
+              <div className="signature-pad-container">
+                <label>Draw Signature <span style={{ color: 'var(--neon-red)' }}>*</span></label>
+                <div className="sig-pad-wrapper">
+                  <SignatureCanvas
+                    ref={cmmSigRef}
+                    penColor="#1e40af"
+                    canvasProps={{ width: 500, height: 140, className: 'sigCanvas', style: { width: '100%', height: '140px' } }}
+                  />
+                  <button type="button" onClick={() => cmmSigRef.current?.clear()} className="sig-clear-btn">Clear</button>
+                  <div className="sig-placeholder-line"></div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ── Submit ── */}
+          {/* ── Action Buttons ── */}
           <div className="section-divider" style={{ margin: '1.5rem 0' }}></div>
+
+          {/* Primary: Generate Review Link */}
           <button
             type="submit"
             className="primary-btn submit-btn"
-            disabled={isSubmitting}
+            disabled={isGeneratingLink || isSubmitting}
+            style={{ marginBottom: '0.75rem' }}
+          >
+            {isGeneratingLink ? (
+              <><span className="spinner"></span> Generating Link…</>
+            ) : (
+              <>🔗 Generate Review Link &amp; Share</>
+            )}
+          </button>
+
+          {/* Secondary: Direct Submit (no remote review) */}
+          <button
+            type="button"
+            className="secondary-btn submit-btn"
+            onClick={handleDirectSubmit}
+            disabled={isSubmitting || isGeneratingLink}
+            title="Use this if both parties are physically present"
           >
             {isSubmitting ? (
               <><span className="spinner"></span> Submitting…</>
             ) : (
-              <><span>✍️</span> Submit Signed Checklist</>
+              <>✍️ Submit Directly (No Review Link)</>
             )}
           </button>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.5rem', textAlign: 'center' }}>
+            Use "Submit Directly" only when Area Maintenance is physically present to sign in person.
+          </p>
+
         </form>
       </div>
+
+      {/* Share Link Modal */}
+      {shareTokenId && (
+        <ShareLinkModal
+          tokenId={shareTokenId}
+          checklistTitle={selectedChecklist.title}
+          fillerName={fillerName.trim() || 'Anonymous'}
+          onClose={() => { setShareTokenId(null); handleReset(); }}
+        />
+      )}
     </div>
   );
 }

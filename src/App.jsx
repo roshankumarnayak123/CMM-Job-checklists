@@ -2,11 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import ChecklistView from './ChecklistView';
 import AdminView from './AdminView';
 import FillChecklistView from './FillChecklistView';
+import ReviewPage from './ReviewPage';
 import PWAInstallPrompt from './PWAInstallPrompt';
 import './App.css';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
 import { collection, onSnapshot } from 'firebase/firestore';
+
+// Detect ?review=<tokenId> in URL
+const urlParams = new URLSearchParams(window.location.search);
+const reviewTokenId = urlParams.get('review');
 
 // Live clock component
 function LiveClock() {
@@ -89,6 +94,11 @@ function App() {
     setSelectedChecklist(checklist);
     setMobileTab('content');
   };
+
+  // ── If URL has ?review=tokenId, show ReviewPage (no login needed) ──
+  if (reviewTokenId) {
+    return <ReviewPage tokenId={reviewTokenId} />;
+  }
 
   return (
     <>
