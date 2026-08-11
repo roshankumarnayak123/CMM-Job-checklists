@@ -600,7 +600,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
   const [showSettings, setShowSettings]       = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal]     = useState(false);
-  const [showSubmissions, setShowSubmissions] = useState(false);
+  const [adminTab, setAdminTab]               = useState('dashboard'); // 'dashboard', 'templates', 'submissions'
   const [submissions, setSubmissions]         = useState([]);
 
   useEffect(() => {
@@ -639,190 +639,182 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
     }
   };
 
-  /* ── Submissions view ── */
-  if (showSubmissions) {
-    return (
-      <div className="right-pane dashboard-pane animate-slide-in">
-        <div className="dashboard-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <button onClick={() => setShowSubmissions(false)} className="secondary-btn">← Back</button>
-            <h2>Filled Submissions</h2>
-            <span className="badge">{submissions.length} total</span>
-          </div>
-        </div>
-        <div className="checklist-container">
-          {submissions.length === 0 ? (
-            <div className="empty-state glass-panel">
-              <div className="empty-state-icon">📭</div>
-              <h3>No Submissions Yet</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Filled checklists will appear here.</p>
+  /* ── Tab Rendering ── */
+  const renderTabContent = () => {
+    switch (adminTab) {
+      case 'dashboard':
+        return (
+          <div className="dashboard-overview animate-fade-in">
+            <div className="overview-metrics">
+              <div className="metric-card glass-panel">
+                <div className="metric-icon">📄</div>
+                <div className="metric-info">
+                  <span className="metric-value">{submissions.length}</span>
+                  <span className="metric-label">Total Filled Checklists</span>
+                </div>
+              </div>
+              <div className="metric-card glass-panel">
+                <div className="metric-icon">⏳</div>
+                <div className="metric-info">
+                  <span className="metric-value">{submissions.filter(s => !s.signatures?.amm).length}</span>
+                  <span className="metric-label">Pending AMM Signatures</span>
+                </div>
+              </div>
             </div>
-          ) : (
-            submissions.map(sub => <SubmissionCard key={sub.id} sub={sub} onDelete={handleDeleteSubmission} />)
-          )}
-        </div>
-      </div>
-    );
-  }
+            
+            <h3 style={{ marginTop: '2rem', marginBottom: '1rem', fontSize: '1.1rem', fontFamily: 'var(--font-display)' }}>Recent Submissions</h3>
+            {submissions.length === 0 ? (
+              <div className="empty-state glass-panel">
+                 <p style={{ color: 'var(--text-secondary)' }}>No submissions yet.</p>
+              </div>
+            ) : (
+              <div className="horizontal-submissions-scroll">
+                {submissions.map(sub => (
+                  <div key={sub.id} className="mini-sub-card glass-panel">
+                    <div className="mini-sub-header">
+                      <strong>{sub.uniqueCode}</strong>
+                      <span className={`status-dot ${sub.signatures?.amm ? 'online' : 'pending'}`}></span>
+                    </div>
+                    <div className="mini-sub-title" style={{ marginTop: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>{sub.checklistTitle}</div>
+                    <div className="mini-sub-date" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.8rem' }}>
+                      {sub.submittedAt 
+                        ? new Date(typeof sub.submittedAt.toDate === 'function' ? sub.submittedAt.toDate() : sub.submittedAt).toLocaleDateString() 
+                        : 'Just now'}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: 'auto' }}>
+                      <button className="secondary-btn" onClick={() => generatePDFReport(sub)} style={{ flex: 1, padding: '0.4rem', fontSize: '0.75rem' }}>
+                        PDF
+                      </button>
+                      <button className="secondary-btn" onClick={() => handleDeleteSubmission(sub)} style={{ padding: '0.4rem', fontSize: '0.75rem', color: 'var(--neon-red)' }}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      
+      case 'templates':
+        return (
+          <div className="templates-tab animate-fade-in">
+            {rawCloudData.length === 0 ? (
+              <div className="empty-state glass-panel">
+                 <p style={{ color: 'var(--text-secondary)' }}>No checklist templates exist yet.</p>
+              </div>
+            ) : (
+              <div className="admin-templates-grid">
+                {rawCloudData.map((checklist, idx) => {
+                  const accents = ['var(--accent)', 'var(--neon-cyan)', 'var(--neon-green)', 'var(--neon-pink)', 'var(--neon-amber)'];
+                  const accent = accents[idx % accents.length];
+                  return (
+                    <div
+                      key={checklist.id}
+                      className="checklist-card glass-panel"
+                      style={{ '--card-accent': accent, '--card-accent-glow': accent, cursor: 'pointer' }}
+                      onClick={() => {
+                        if (setSelectedChecklist) setSelectedChecklist(checklist);
+                        setShowEditModal(true);
+                      }}
+                    >
+                      <div className="card-title">{checklist.title}</div>
+                      {checklist.description && (
+                        <div className="card-desc">{checklist.description}</div>
+                      )}
+                      <div className="card-meta">
+                        {checklist.checkpoints?.length > 0 && (
+                          <span className="checkpoint-badge">
+                            {checklist.checkpoints.length} checkpoint{checklist.checkpoints.length !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        <span className="checkpoint-badge" style={{ background: 'rgba(139,92,246,0.15)', color: 'var(--accent-hover)', borderColor: 'rgba(139,92,246,0.3)' }}>
+                          ✏️ Edit
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+
+      case 'submissions':
+        return (
+          <div className="submissions-tab animate-fade-in">
+            <div className="checklist-container">
+              {submissions.length === 0 ? (
+                <div className="empty-state glass-panel">
+                  <div className="empty-state-icon">📭</div>
+                  <h3>No Submissions Yet</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Filled checklists will appear here.</p>
+                </div>
+              ) : (
+                submissions.map(sub => <SubmissionCard key={sub.id} sub={sub} onDelete={handleDeleteSubmission} />)
+              )}
+            </div>
+          </div>
+        );
+      
+      default:
+        return null;
+    }
+  };
 
   /* ── Main admin dashboard ── */
   return (
-    <div className="right-pane dashboard-pane animate-slide-in">
-
+    <div className="right-pane dashboard-pane animate-slide-in" style={{ padding: '2rem' }}>
       {/* Portaled modals — rendered into document.body */}
       <SettingsModal showSettings={showSettings} setShowSettings={setShowSettings} rawCloudData={rawCloudData} />
       <CreateChecklistModal showCreateModal={showCreateModal} setShowCreateModal={setShowCreateModal} />
       <EditChecklistModal showEditModal={showEditModal} setShowEditModal={setShowEditModal} selectedChecklist={selectedChecklist} />
 
-      <div className="dashboard-header">
-        <h2>Admin Dashboard</h2>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          {selectedChecklist && (
-            <button className="secondary-btn glass-panel" onClick={() => setSelectedChecklist && setSelectedChecklist(null)}>
-              🏠 Dashboard
+      {/* Admin Header with Top Nav */}
+      <div className="dashboard-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '1.5rem', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <h2>Admin Dashboard</h2>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="primary-btn" onClick={() => setShowCreateModal(true)}>
+              ✨ New Checklist
             </button>
-          )}
-          <button className="primary-btn" onClick={() => setShowCreateModal(true)}>
-            ✨ New Checklist
-          </button>
-          <button
-            className="secondary-btn glass-panel"
-            onClick={() => setShowSettings(true)}
-            title="Settings"
+            <button
+              className="secondary-btn glass-panel"
+              onClick={() => setShowSettings(true)}
+              title="Settings"
+            >
+              ⚙️ Settings
+            </button>
+            <button onClick={handleLogout} className="secondary-btn" style={{ color: 'var(--neon-red)' }}>
+              Log Out
+            </button>
+          </div>
+        </div>
+        
+        <div className="admin-nav-tabs">
+          <button 
+            className={`admin-tab ${adminTab === 'dashboard' ? 'active' : ''}`} 
+            onClick={() => setAdminTab('dashboard')}
           >
-            ⚙️ Settings
+            Overview
           </button>
-          <button onClick={handleLogout} className="secondary-btn" style={{ color: 'var(--neon-red)' }}>
-            Log Out
+          <button 
+            className={`admin-tab ${adminTab === 'templates' ? 'active' : ''}`} 
+            onClick={() => setAdminTab('templates')}
+          >
+            Templates
+          </button>
+          <button 
+            className={`admin-tab ${adminTab === 'submissions' ? 'active' : ''}`} 
+            onClick={() => setAdminTab('submissions')}
+          >
+            Submissions
+            {submissions.length > 0 && <span className="admin-tab-badge">{submissions.length}</span>}
           </button>
         </div>
       </div>
 
-      {selectedChecklist ? (
-        <div className="checklist-details glass-panel animate-fade-in">
-          <div className="details-header">
-            <div>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700 }}>{selectedChecklist.title}</h3>
-              <p style={{ margin: '0.3rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                {selectedChecklist.description}
-              </p>
-            </div>
-            <span className="badge" style={{ fontFamily: 'var(--font-mono)' }}>
-              {selectedChecklist.id.slice(0, 8)}…
-            </span>
-          </div>
-
-          {selectedChecklist.checkpoints?.length > 0 && (
-            <div style={{ marginTop: '1.25rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border)' }}>
-              <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
-                Checkpoints ({selectedChecklist.checkpoints.length})
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                {selectedChecklist.checkpoints.map((cp, i) => (
-                  <div key={cp.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.83rem' }}>
-                    <span style={{ width: 22, height: 22, borderRadius: '6px', background: 'rgba(139,92,246,0.15)', color: 'var(--accent-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 800, fontFamily: 'var(--font-display)', border: '1px solid rgba(139,92,246,0.3)', flexShrink: 0 }}>
-                      {i + 1}
-                    </span>
-                    <span style={{ color: 'var(--text-primary)', flex: 1 }}>{cp.label}</span>
-                    <span className={`checkpoint-type-badge type-${cp.type}`}>{cp.type}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {selectedChecklist.history?.length > 0 && (
-            <div style={{ marginTop: '1.25rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border)' }}>
-              <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
-                Modification History ({selectedChecklist.history.length})
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                {selectedChecklist.history.slice().reverse().map((hist, i) => (
-                  <div key={i} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    <strong style={{ color: 'var(--text-primary)' }}>Edited on:</strong> {new Date(hist.modifiedAt).toLocaleString('en-IN')}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="action-buttons">
-            <button className="action-btn delete-btn" onClick={handleDeleteChecklist} style={{ color: 'var(--neon-red)', borderColor: 'var(--neon-red)' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              </svg>
-              Delete
-            </button>
-            <button className="action-btn download-btn" onClick={() => alert(`Downloading ${selectedChecklist.title}…`)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              Download PDF
-            </button>
-            <button className="action-btn edit-btn" onClick={() => setShowEditModal(true)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-              </svg>
-              Edit
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="dashboard-overview animate-fade-in">
-          <div className="overview-metrics">
-            <div className="metric-card glass-panel">
-              <div className="metric-icon">📄</div>
-              <div className="metric-info">
-                <span className="metric-value">{submissions.length}</span>
-                <span className="metric-label">Total Filled Checklists</span>
-              </div>
-            </div>
-            <div className="metric-card glass-panel">
-              <div className="metric-icon">⏳</div>
-              <div className="metric-info">
-                <span className="metric-value">{submissions.filter(s => !s.signatures?.amm).length}</span>
-                <span className="metric-label">Pending AMM Signatures</span>
-              </div>
-            </div>
-          </div>
-          
-          <h3 style={{ marginTop: '2rem', marginBottom: '1rem', fontSize: '1.1rem', fontFamily: 'var(--font-display)' }}>Recent Submissions</h3>
-          {submissions.length === 0 ? (
-            <div className="empty-state glass-panel">
-               <p style={{ color: 'var(--text-secondary)' }}>No submissions yet.</p>
-            </div>
-          ) : (
-            <div className="horizontal-submissions-scroll">
-              {submissions.map(sub => (
-                <div key={sub.id} className="mini-sub-card glass-panel">
-                  <div className="mini-sub-header">
-                    <strong>{sub.uniqueCode}</strong>
-                    <span className={`status-dot ${sub.signatures?.amm ? 'online' : 'pending'}`}></span>
-                  </div>
-                  <div className="mini-sub-title" style={{ marginTop: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>{sub.checklistTitle}</div>
-                  <div className="mini-sub-date" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.8rem' }}>
-                    {sub.submittedAt 
-                      ? new Date(typeof sub.submittedAt.toDate === 'function' ? sub.submittedAt.toDate() : sub.submittedAt).toLocaleDateString() 
-                      : 'Just now'}
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.4rem', marginTop: 'auto' }}>
-                    <button className="secondary-btn" onClick={() => generatePDFReport(sub)} style={{ flex: 1, padding: '0.4rem', fontSize: '0.75rem' }}>
-                      PDF
-                    </button>
-                    <button className="secondary-btn" onClick={() => handleDeleteSubmission(sub)} style={{ padding: '0.4rem', fontSize: '0.75rem', color: 'var(--neon-red)' }}>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {renderTabContent()}
     </div>
   );
 }

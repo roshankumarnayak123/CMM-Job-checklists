@@ -197,17 +197,20 @@ function App() {
 
       {/* ── Main App Layout ── */}
       <div className="app-container">
-        {/* Left pane — hidden on mobile when content tab active */}
-        <div className={`left-pane-wrapper ${mobileTab === 'list' ? 'mobile-active' : 'mobile-hidden'}`}>
-          <ChecklistView
-            checklists={checklists}
-            loading={loading}
-            selectedChecklist={selectedChecklist}
-            setSelectedChecklist={handleSelectChecklist}
-          />
-        </div>
-
-        <div className="divider desktop-only"></div>
+        {/* Left pane — only visible to regular users */}
+        {!isAdminLoggedIn && (
+          <>
+            <div className={`left-pane-wrapper ${mobileTab === 'list' ? 'mobile-active' : 'mobile-hidden'}`}>
+              <ChecklistView
+                checklists={checklists}
+                loading={loading}
+                selectedChecklist={selectedChecklist}
+                setSelectedChecklist={handleSelectChecklist}
+              />
+            </div>
+            <div className="divider desktop-only"></div>
+          </>
+        )}
 
         {/* Right pane — hidden on mobile when list tab active */}
         <div className={`right-pane-wrapper ${mobileTab === 'content' ? 'mobile-active' : 'mobile-hidden'}`}>
@@ -226,27 +229,29 @@ function App() {
         </div>
       </div>
 
-      {/* ── Mobile Bottom Tab Bar ── */}
-      <nav className="mobile-bottom-nav glass-panel">
-        <button
-          className={`mobile-nav-btn ${mobileTab === 'list' ? 'active' : ''}`}
-          onClick={() => setMobileTab('list')}
-        >
-          <span className="mobile-nav-icon">📋</span>
-          <span className="mobile-nav-label">Checklists</span>
-          {checklists.length > 0 && (
-            <span className="mobile-nav-badge">{checklists.length}</span>
-          )}
-        </button>
+      {/* ── Mobile Bottom Tab Bar (Users Only) ── */}
+      {!isAdminLoggedIn && (
+        <nav className="mobile-bottom-nav glass-panel">
+          <button
+            className={`mobile-nav-btn ${mobileTab === 'list' ? 'active' : ''}`}
+            onClick={() => setMobileTab('list')}
+          >
+            <span className="mobile-nav-icon">📋</span>
+            <span className="mobile-nav-label">Checklists</span>
+            {checklists.length > 0 && (
+              <span className="mobile-nav-badge">{checklists.length}</span>
+            )}
+          </button>
 
-        <button
-          className={`mobile-nav-btn ${mobileTab === 'content' ? 'active' : ''}`}
-          onClick={() => setMobileTab('content')}
-        >
-          <span className="mobile-nav-icon">{isAdminLoggedIn ? '🛠️' : '✍️'}</span>
-          <span className="mobile-nav-label">{isAdminLoggedIn ? 'Admin' : 'Fill Form'}</span>
-        </button>
-      </nav>
+          <button
+            className={`mobile-nav-btn ${mobileTab === 'content' ? 'active' : ''}`}
+            onClick={() => setMobileTab('content')}
+          >
+            <span className="mobile-nav-icon">✍️</span>
+            <span className="mobile-nav-label">Fill Form</span>
+          </button>
+        </nav>
+      )}
 
       {/* ── PWA Install Prompt ── */}
       <PWAInstallPrompt />

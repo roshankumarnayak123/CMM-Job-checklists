@@ -2272,3 +2272,12 @@
   .review-center-card { width: 92vw; padding: 2rem 1.25rem; }
   .review-sig-info    { grid-template-columns: 1fr; }
 }
+  
+/* ADMIN NAV TABS */  
+.admin-nav-tabs { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }  
+.admin-tab { background: transparent; border: none; color: var(--text-secondary); font-family: var(--font-display); font-weight: 600; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.2s ease; position: relative; display: flex; align-items: center; gap: 0.5rem; white-space: nowrap; }  
+.admin-tab:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }  
+.admin-tab.active { color: var(--accent); background: rgba(139,92,246,0.1); }  
+.admin-tab-badge { background: var(--accent); color: white; font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 20px; }  
+/* ADMIN TEMPLATES GRID */  
+.admin-templates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; align-items: start; } 
