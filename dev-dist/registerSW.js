@@ -1,1 +1,1 @@
-if('serviceWorker' in navigator) navigator.serviceWorker.register('/dev-sw.js?dev-sw', { scope: '/', type: 'classic' })
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/CMM-Job-checklists/dev-sw.js?dev-sw', { scope: '/CMM-Job-checklists/', type: 'classic' })

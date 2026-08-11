@@ -20,7 +20,10 @@ function LiveClock() {
   useEffect(() => {
     const tick = () => {
       const now = new Date();
-      setTime(now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setTime(now.toLocaleString('en-US', { 
+        month: 'short', day: 'numeric', year: 'numeric', 
+        hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' 
+      }));
     };
     tick();
     const id = setInterval(tick, 1000);
@@ -127,15 +130,12 @@ function App() {
           <span className="app-logo-text">CMM Checklist</span>
         </div>
 
-        <div className="header-center">
+        <div className="header-actions">
           <LiveClock />
           <div className="cloud-sync-status">
             <div className="status-dot online"></div>
             <span className="sync-label">Live</span>
           </div>
-        </div>
-
-        <div className="header-actions">
           <button className="theme-toggle-inline" onClick={toggleTheme} title="Toggle Theme">
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
@@ -214,6 +214,7 @@ function App() {
           {isAdminLoggedIn ? (
             <AdminView
               selectedChecklist={selectedChecklist}
+              setSelectedChecklist={handleSelectChecklist}
               rawCloudData={checklists}
             />
           ) : (

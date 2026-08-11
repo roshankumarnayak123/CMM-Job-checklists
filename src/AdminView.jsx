@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import './App.css';
 import { auth, db } from './firebase';
 import { signOut } from 'firebase/auth';
-import { collection, addDoc, doc, updateDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 
 /* ════════════════════════════════════════════════════
    PDF REPORT GENERATOR
@@ -444,7 +444,20 @@ function EditChecklistModal({ showEditModal, setShowEditModal, selectedChecklist
     if (!title.trim() || !description.trim() || !selectedChecklist) return;
     setIsSubmitting(true);
     try {
-      await updateDoc(doc(db, 'checklists', selectedChecklist.id), { title: title.trim(), description: description.trim(), checkpoints });
+      const historyEntry = {
+        modifiedAt: new Date().toISOString(),
+        previousTitle: selectedChecklist.title,
+        previousDescription: selectedChecklist.description,
+        previousCheckpoints: selectedChecklist.checkpoints || []
+      };
+      const updatedHistory = [...(selectedChecklist.history || []), historyEntry];
+
+      await updateDoc(doc(db, 'checklists', selectedChecklist.id), { 
+        title: title.trim(), 
+        description: description.trim(), 
+        checkpoints,
+        history: updatedHistory
+      });
       setShowEditModal(false);
     } catch (err) {
       console.error(err);
@@ -580,7 +593,7 @@ function SubmissionCard({ sub }) {
 /* ════════════════════════════════════════════════════
    ADMIN VIEW — Main Export
 ════════════════════════════════════════════════════ */
-export default function AdminView({ selectedChecklist, rawCloudData }) {
+export default function AdminView({ selectedChecklist, setSelectedChecklist, rawCloudData }) {
   const [showSettings, setShowSettings]       = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal]     = useState(false);
@@ -596,6 +609,20 @@ export default function AdminView({ selectedChecklist, rawCloudData }) {
   }, []);
 
   const handleLogout = async () => await signOut(auth);
+
+  const handleDeleteChecklist = async () => {
+    if (!selectedChecklist) return;
+    const confirmDelete = window.confirm(`Are you sure you want to delete "${selectedChecklist.title}"? This cannot be undone.`);
+    if (!confirmDelete) return;
+
+    try {
+      await deleteDoc(doc(db, 'checklists', selectedChecklist.id));
+      if (setSelectedChecklist) setSelectedChecklist(null);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete checklist.');
+    }
+  };
 
   /* ── Submissions view ── */
   if (showSubmissions) {
@@ -635,14 +662,6 @@ export default function AdminView({ selectedChecklist, rawCloudData }) {
       <div className="dashboard-header">
         <h2>Admin Dashboard</h2>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <button className="secondary-btn glass-panel" onClick={() => setShowSubmissions(true)}>
-            📋 Submissions
-            {submissions.length > 0 && (
-              <span style={{ marginLeft: '0.3rem', background: 'var(--accent)', color: 'white', borderRadius: '999px', fontSize: '0.68rem', padding: '0.1rem 0.45rem', fontWeight: 700, fontFamily: 'var(--font-display)' }}>
-                {submissions.length}
-              </span>
-            )}
-          </button>
           <button className="primary-btn" onClick={() => setShowCreateModal(true)}>
             ✨ New Checklist
           </button>
@@ -692,7 +711,29 @@ export default function AdminView({ selectedChecklist, rawCloudData }) {
             </div>
           )}
 
+          {selectedChecklist.history?.length > 0 && (
+            <div style={{ marginTop: '1.25rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border)' }}>
+              <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
+                Modification History ({selectedChecklist.history.length})
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                {selectedChecklist.history.slice().reverse().map((hist, i) => (
+                  <div key={i} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Edited on:</strong> {new Date(hist.modifiedAt).toLocaleString('en-IN')}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="action-buttons">
+            <button className="action-btn delete-btn" onClick={handleDeleteChecklist} style={{ color: 'var(--neon-red)', borderColor: 'var(--neon-red)' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Delete
+            </button>
             <button className="action-btn download-btn" onClick={() => alert(`Downloading ${selectedChecklist.title}…`)}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -706,17 +747,53 @@ export default function AdminView({ selectedChecklist, rawCloudData }) {
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
               </svg>
-              Edit Checklist
+              Edit
             </button>
           </div>
         </div>
       ) : (
-        <div className="empty-state glass-panel animate-fade-in">
-          <div className="empty-state-icon">🛠️</div>
-          <h3>Select a Template</h3>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-            Choose a checklist from the left panel to manage it here.
-          </p>
+        <div className="dashboard-overview animate-fade-in">
+          <div className="overview-metrics">
+            <div className="metric-card glass-panel">
+              <div className="metric-icon">📄</div>
+              <div className="metric-info">
+                <span className="metric-value">{submissions.length}</span>
+                <span className="metric-label">Total Filled Checklists</span>
+              </div>
+            </div>
+            <div className="metric-card glass-panel">
+              <div className="metric-icon">⏳</div>
+              <div className="metric-info">
+                <span className="metric-value">{submissions.filter(s => !s.signatures?.amm).length}</span>
+                <span className="metric-label">Pending AMM Signatures</span>
+              </div>
+            </div>
+          </div>
+          
+          <h3 style={{ marginTop: '2rem', marginBottom: '1rem', fontSize: '1.1rem', fontFamily: 'var(--font-display)' }}>Recent Submissions</h3>
+          {submissions.length === 0 ? (
+            <div className="empty-state glass-panel">
+               <p style={{ color: 'var(--text-secondary)' }}>No submissions yet.</p>
+            </div>
+          ) : (
+            <div className="horizontal-submissions-scroll">
+              {submissions.map(sub => (
+                <div key={sub.id} className="mini-sub-card glass-panel">
+                  <div className="mini-sub-header">
+                    <strong>{sub.uniqueCode}</strong>
+                    <span className={`status-dot ${sub.signatures?.amm ? 'online' : 'pending'}`}></span>
+                  </div>
+                  <div className="mini-sub-title" style={{ marginTop: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>{sub.checklistTitle}</div>
+                  <div className="mini-sub-date" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.8rem' }}>
+                    {sub.submittedAt ? new Date(sub.submittedAt.toDate()).toLocaleDateString() : 'Just now'}
+                  </div>
+                  <button className="secondary-btn" onClick={() => generatePDFReport(sub)} style={{ width: '100%', padding: '0.4rem', fontSize: '0.75rem' }}>
+                    View PDF
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
