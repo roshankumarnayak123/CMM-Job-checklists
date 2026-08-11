@@ -785,7 +785,9 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
                   </div>
                   <div className="mini-sub-title" style={{ marginTop: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>{sub.checklistTitle}</div>
                   <div className="mini-sub-date" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.8rem' }}>
-                    {sub.submittedAt ? new Date(sub.submittedAt.toDate()).toLocaleDateString() : 'Just now'}
+                    {sub.submittedAt 
+                      ? new Date(typeof sub.submittedAt.toDate === 'function' ? sub.submittedAt.toDate() : sub.submittedAt).toLocaleDateString() 
+                      : 'Just now'}
                   </div>
                   <button className="secondary-btn" onClick={() => generatePDFReport(sub)} style={{ width: '100%', padding: '0.4rem', fontSize: '0.75rem' }}>
                     View PDF
