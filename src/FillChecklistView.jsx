@@ -1,9 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { db, storage } from './firebase';
+import { db } from './firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import SignatureCanvas from 'react-signature-canvas';
 import ShareLinkModal from './ShareLinkModal';
+
+const withTimeout = (promise, ms, errorMsg) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(errorMsg)), ms))
+  ]);
+};
 
 // Hex-style step indicator
 function StepIndicator({ currentStep, totalSteps }) {
@@ -60,10 +66,18 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     setCheckpointValues(prev => ({ ...prev, [id]: value }));
 
   const buildPayload = (code) => {
-    const formattedCheckpoints = (selectedChecklist.checkpoints || []).map(cp => ({
-      label: cp.label,
-      value: checkpointValues[cp.id] || ''
-    }));
+    const formattedCheckpoints = (selectedChecklist.checkpoints || []).map(cp => {
+      let val = checkpointValues[cp.id];
+      if (cp.type === 'checkbox') {
+        val = (val === 'true') ? 'Yes' : 'No';
+      } else {
+        val = val || '';
+      }
+      return {
+        label: cp.label,
+        value: val
+      };
+    });
 
     const cmmSignature = {
       ...cmmData,
@@ -92,26 +106,20 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     const code = generateCode();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
-    const payload = {
-      ...buildPayload(code),
-      status: 'pending_review',
-      createdAt: serverTimestamp(),
-      expiresAt,
-      ammSignature: null,
-    };
-
     try {
-      if (!cmmSigRef.current?.isEmpty()) {
-        const sigDataUrl = cmmSigRef.current?.getTrimmedCanvas().toDataURL('image/png');
-        const sigRef = ref(storage, `signatures/${code}_cmm_draft.png`);
-        await uploadString(sigRef, sigDataUrl, 'data_url');
-        payload.cmmSignature.signatureDataUrl = await getDownloadURL(sigRef);
-      }
-      const docRef = await addDoc(collection(db, 'review_tokens'), payload);
+      const payload = {
+        ...buildPayload(code),
+        status: 'pending_review',
+        createdAt: serverTimestamp(),
+        expiresAt,
+        ammSignature: null,
+      };
+
+      const docRef = await withTimeout(addDoc(collection(db, 'review_tokens'), payload), 15000, "Database write timed out.");
       setShareTokenId(docRef.id);
     } catch (err) {
       console.error('Error generating review link:', err);
-      alert("Failed to generate link. Check Firestore rules allow writes to 'review_tokens'.");
+      alert(err.message || "Failed to generate link. Check Firestore rules and Storage configuration.");
     } finally {
       setIsGeneratingLink(false);
     }
@@ -140,26 +148,16 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     const code = generateCode();
 
     try {
-      let cmmSigUrl = null;
-      if (!cmmSigRef.current?.isEmpty()) {
-        const sigDataUrl = cmmSigRef.current?.getTrimmedCanvas().toDataURL('image/png');
-        const sigRef = ref(storage, `signatures/${code}_cmm.png`);
-        await uploadString(sigRef, sigDataUrl, 'data_url');
-        cmmSigUrl = await getDownloadURL(sigRef);
-      }
-
-      await addDoc(collection(db, 'filled_checklists'), {
-        ...buildPayload(code),
+      const payloadBase = buildPayload(code);
+      await withTimeout(addDoc(collection(db, 'filled_checklists'), {
+        ...payloadBase,
         submittedAt: serverTimestamp(),
         signatures: {
-          cmm: {
-            ...cmmData,
-            signatureDataUrl: cmmSigUrl
-          },
+          cmm: payloadBase.cmmSignature,
           amm: null
         },
         reviewMode: 'direct'
-      });
+      }), 15000, "Database write timed out.");
       setSubmittedCode(code);
     } catch (err) {
       console.error('Error submitting checklist:', err);
@@ -188,7 +186,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
           <div className="empty-state-icon">📋</div>
           <h3>No Checklist Selected</h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
-            Pick a checklist template from the left panel to start filling it out.
+            Pick a checklist from the left panel to start filling it out.
           </p>
         </div>
       </div>
@@ -352,7 +350,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                           className="styled-select"
                         >
                           <option value="" disabled>Select an option…</option>
-                          {cp.options.split(',').map((opt, i) => (
+                          {(cp.options || '').split(',').map((opt, i) => (
                             <option key={i} value={opt.trim()}>{opt.trim()}</option>
                           ))}
                         </select>

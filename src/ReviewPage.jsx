@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { db, storage } from './firebase';
+import { db } from './firebase';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import SignatureCanvas from 'react-signature-canvas';
 
 export default function ReviewPage({ tokenId }) {
@@ -53,14 +52,11 @@ export default function ReviewPage({ tokenId }) {
     setStatus('submitting');
     try {
       const ammSigDataUrl = ammSigRef.current.getTrimmedCanvas().toDataURL('image/png');
-      const sigRef = ref(storage, `signatures/${tokenData.uniqueCode || tokenId}_amm.png`);
-      await uploadString(sigRef, ammSigDataUrl, 'data_url');
-      const ammSigUrl = await getDownloadURL(sigRef);
 
       const refDoc = doc(db, 'review_tokens', tokenId);
       const ammSignature = {
         ...ammData,
-        signatureDataUrl: ammSigUrl,
+        signatureDataUrl: ammSigDataUrl,
       };
       await updateDoc(refDoc, {
         status: 'completed',

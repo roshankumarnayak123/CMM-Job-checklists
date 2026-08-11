@@ -1,6 +1,6 @@
 export default function CheckpointsEditor({ checkpoints, setCheckpoints }) {
   const addCheckpoint = () =>
-    setCheckpoints([...checkpoints, { id: Date.now().toString(), label: '', type: 'text', options: '' }]);
+    setCheckpoints([...checkpoints, { id: crypto.randomUUID(), label: '', type: 'text', options: '' }]);
   const removeCheckpoint = (id) =>
     setCheckpoints(checkpoints.filter(cp => cp.id !== id));
   const updateCheckpoint = (id, field, value) =>

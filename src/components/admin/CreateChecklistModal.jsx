@@ -43,7 +43,7 @@ export default function CreateChecklistModal({ showCreateModal, setShowCreateMod
     <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '100%' }}>
         <div className="modal-header">
-          <h3>✨ Create New Template</h3>
+          <h3>✨ Create New Checklist</h3>
           <button type="button" className="close-btn" aria-label="Close modal" onClick={handleClose}>✕</button>
         </div>
         <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
@@ -54,7 +54,7 @@ export default function CreateChecklistModal({ showCreateModal, setShowCreateMod
             </div>
             <div className="input-group">
               <label htmlFor="checklist-desc">Description</label>
-              <input id="checklist-desc" type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="A brief description of this template…" required />
+              <input id="checklist-desc" type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="A brief description of this checklist…" required />
             </div>
             <div className="section-divider" style={{ margin: '1.1rem 0' }}></div>
             <CheckpointsEditor checkpoints={checkpoints} setCheckpoints={setCheckpoints} />

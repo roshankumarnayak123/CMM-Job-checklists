@@ -4,7 +4,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import CheckpointsEditor from './CheckpointsEditor';
 
-export default function EditChecklistModal({ showEditModal, setShowEditModal, selectedChecklist }) {
+export default function EditChecklistModal({ showEditModal, setShowEditModal, selectedChecklist, onDelete }) {
   const [title, setTitle]               = useState('');
   const [description, setDescription]   = useState('');
   const [checkpoints, setCheckpoints]   = useState([]);
@@ -68,7 +68,7 @@ export default function EditChecklistModal({ showEditModal, setShowEditModal, se
     <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '100%' }}>
         <div className="modal-header">
-          <h3>✏️ Edit Template</h3>
+          <h3>✏️ Edit Checklist</h3>
           <button type="button" className="close-btn" aria-label="Close modal" onClick={handleClose}>✕</button>
         </div>
         <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
@@ -84,9 +84,25 @@ export default function EditChecklistModal({ showEditModal, setShowEditModal, se
             <div className="section-divider" style={{ margin: '1.1rem 0' }}></div>
             <CheckpointsEditor checkpoints={checkpoints} setCheckpoints={setCheckpoints} />
             <div className="section-divider" style={{ margin: '1.1rem 0' }}></div>
-            <button type="submit" className="primary-btn" style={{ width: '100%' }} disabled={isSubmitting}>
-              {isSubmitting ? <><span className="spinner"></span> Saving…</> : '💾 Save Changes'}
-            </button>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button 
+                type="button" 
+                className="secondary-btn" 
+                style={{ flex: 1, color: 'var(--neon-red)' }} 
+                disabled={isSubmitting}
+                onClick={async () => {
+                  if (onDelete) {
+                    await onDelete();
+                    setShowEditModal(false);
+                  }
+                }}
+              >
+                🗑️ Delete Checklist
+              </button>
+              <button type="submit" className="primary-btn" style={{ flex: 1 }} disabled={isSubmitting}>
+                {isSubmitting ? <><span className="spinner"></span> Saving…</> : '💾 Save Changes'}
+              </button>
+            </div>
           </form>
         </div>
       </div>

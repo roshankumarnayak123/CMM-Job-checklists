@@ -48,7 +48,7 @@ export default function ChecklistView({ checklists, loading, selectedChecklist, 
       <div className="search-header glass-panel">
         <div className="pane-title">Checklists</div>
         <div className="pane-subtitle">
-          {loading ? 'Loading…' : `${filteredChecklists.length} template${filteredChecklists.length !== 1 ? 's' : ''}`}
+          {loading ? 'Loading…' : `${filteredChecklists.length} checklist${filteredChecklists.length !== 1 ? 's' : ''}`}
         </div>
         <div className="search-bar">
           <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

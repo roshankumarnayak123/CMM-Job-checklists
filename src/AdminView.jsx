@@ -155,7 +155,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
           <div className="templates-tab animate-fade-in">
             {rawCloudData.length === 0 ? (
               <div className="empty-state glass-panel">
-                 <p style={{ color: 'var(--text-secondary)' }}>No checklist templates exist yet.</p>
+                 <p style={{ color: 'var(--text-secondary)' }}>No checklists exist yet.</p>
               </div>
             ) : (
               <div className="admin-templates-grid">
@@ -206,6 +206,11 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
                 </div>
               ) : (
                 <>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+                    <button className="secondary-btn" onClick={handleExportCSV}>
+                      📥 Export CSV
+                    </button>
+                  </div>
                   {submissions.map(sub => <SubmissionCard key={sub.id} sub={sub} onDelete={handleDeleteSubmission} />)}
                   {submissions.length === limitCount && (
                     <div style={{ textAlign: 'center', marginTop: '1rem' }}>
@@ -229,7 +234,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
       {/* Portaled modals — rendered into document.body */}
       <SettingsModal showSettings={showSettings} setShowSettings={setShowSettings} rawCloudData={rawCloudData} />
       <CreateChecklistModal showCreateModal={showCreateModal} setShowCreateModal={setShowCreateModal} />
-      <EditChecklistModal showEditModal={showEditModal} setShowEditModal={setShowEditModal} selectedChecklist={selectedChecklist} />
+      <EditChecklistModal showEditModal={showEditModal} setShowEditModal={setShowEditModal} selectedChecklist={selectedChecklist} onDelete={handleDeleteChecklist} />
 
       {/* Admin Header with Top Nav */}
       <div className="dashboard-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '1.5rem', marginBottom: '2rem' }}>
@@ -263,7 +268,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
             className={`admin-tab ${adminTab === 'templates' ? 'active' : ''}`} 
             onClick={() => setAdminTab('templates')}
           >
-            Templates
+            Checklists
           </button>
           <button 
             className={`admin-tab ${adminTab === 'submissions' ? 'active' : ''}`} 
