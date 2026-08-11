@@ -82,7 +82,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     const cmmSignature = {
       ...cmmData,
       signatureDataUrl: (cmmSigRef.current && !cmmSigRef.current.isEmpty()) 
-        ? cmmSigRef.current.getTrimmedCanvas().toDataURL('image/png') 
+        ? cmmSigRef.current.getCanvas().toDataURL('image/png')
         : null
     };
 

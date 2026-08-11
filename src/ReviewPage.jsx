@@ -51,7 +51,7 @@ export default function ReviewPage({ tokenId }) {
     setSubmitError('');
     setStatus('submitting');
     try {
-      const ammSigDataUrl = ammSigRef.current.getTrimmedCanvas().toDataURL('image/png');
+      const ammSigDataUrl = ammSigRef.current.getCanvas().toDataURL('image/png');
 
       const refDoc = doc(db, 'review_tokens', tokenId);
       const ammSignature = {
