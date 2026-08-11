@@ -11,9 +11,12 @@ export default function ShareLinkModal({ tokenId, expiresAtMs, checklistTitle, f
   // Countdown timer
   useEffect(() => {
     if (secondsLeft <= 0) return;
-    const id = setInterval(() => setSecondsLeft(s => s - 1), 1000);
+    const id = setInterval(() => setSecondsLeft(s => {
+      if (s <= 1) { clearInterval(id); return 0; }
+      return s - 1;
+    }), 1000);
     return () => clearInterval(id);
-  }, [secondsLeft]);
+  }, []);
 
   const formatCountdown = (s) => {
     const m = Math.floor(s / 60);

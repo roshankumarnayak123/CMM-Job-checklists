@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { db } from '../../firebase';
+import { auth, db } from '../../firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import { sendPasswordResetEmail } from 'firebase/auth';
 
 const SETTINGS_TABS = [
   { id: 'cloud', icon: '📊', label: 'Cloud Usage' },
@@ -135,7 +136,10 @@ export default function SettingsModal({ showSettings, setShowSettings, rawCloudD
 
               {/* Card 2 — Storage Used Categorically */}
               <div className="usage-card" style={{ gridColumn: '1 / -1' }}>
-                <h4>Categorical Storage Breakdown</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <h4>Categorical Storage Breakdown</h4>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{usagePct}% of 1GB Quota Used</span>
+                </div>
                 <div className="usage-value">{storageStats.isCalculating ? 'Calculating...' : formatBytes(storageStats.total)}</div>
                 
                 {!storageStats.isCalculating && (
@@ -148,7 +152,7 @@ export default function SettingsModal({ showSettings, setShowSettings, rawCloudD
                         <span>{formatBytes(storageStats.templates)}</span>
                       </div>
                       <div className="progress-bar" style={{ height: '8px' }}>
-                        <div className="progress-fill" style={{ width: `${Math.max((storageStats.templates / Math.max(storageStats.total, 1)) * 100, 0.5)}%`, background: '#3b82f6', transition: 'width 0.5s ease-out' }}></div>
+                        <div className="progress-fill" style={{ width: `${Math.max((storageStats.templates / quotaBytes) * 100, 0.5)}%`, background: '#3b82f6', transition: 'width 0.5s ease-out' }}></div>
                       </div>
                     </div>
 
@@ -159,7 +163,7 @@ export default function SettingsModal({ showSettings, setShowSettings, rawCloudD
                         <span>{formatBytes(storageStats.textData)}</span>
                       </div>
                       <div className="progress-bar" style={{ height: '8px' }}>
-                        <div className="progress-fill" style={{ width: `${Math.max((storageStats.textData / Math.max(storageStats.total, 1)) * 100, 0.5)}%`, background: '#10b981', transition: 'width 0.5s ease-out' }}></div>
+                        <div className="progress-fill" style={{ width: `${Math.max((storageStats.textData / quotaBytes) * 100, 0.5)}%`, background: '#10b981', transition: 'width 0.5s ease-out' }}></div>
                       </div>
                     </div>
 
@@ -170,7 +174,7 @@ export default function SettingsModal({ showSettings, setShowSettings, rawCloudD
                         <span>{formatBytes(storageStats.signatures)}</span>
                       </div>
                       <div className="progress-bar" style={{ height: '8px' }}>
-                        <div className="progress-fill" style={{ width: `${Math.max((storageStats.signatures / Math.max(storageStats.total, 1)) * 100, 0.5)}%`, background: '#f59e0b', transition: 'width 0.5s ease-out' }}></div>
+                        <div className="progress-fill" style={{ width: `${Math.max((storageStats.signatures / quotaBytes) * 100, 0.5)}%`, background: '#f59e0b', transition: 'width 0.5s ease-out' }}></div>
                       </div>
                     </div>
 
@@ -193,9 +197,24 @@ export default function SettingsModal({ showSettings, setShowSettings, rawCloudD
             <div className="settings-section animate-fade-in" style={{ padding: '1rem' }}>
               <h4>Admin Account</h4>
               <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
-                You are currently logged in as an administrator.
+                You are currently logged in as an administrator ({auth.currentUser?.email}).
               </p>
-              <button className="secondary-btn" onClick={() => alert('Password reset link sent (mock)')}>Reset Password</button>
+              <button 
+                className="secondary-btn" 
+                onClick={async () => {
+                  if (auth.currentUser?.email) {
+                    try {
+                      await sendPasswordResetEmail(auth, auth.currentUser.email);
+                      alert('Password reset link sent to your email.');
+                    } catch (err) {
+                      console.error('Error sending reset email:', err);
+                      alert('Failed to send password reset email.');
+                    }
+                  }
+                }}
+              >
+                Reset Password
+              </button>
             </div>
           )}
           {activeTab === 'audit' && (

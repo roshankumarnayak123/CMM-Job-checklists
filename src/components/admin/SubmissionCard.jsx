@@ -46,9 +46,16 @@ export default function SubmissionCard({ sub, onDelete }) {
               </h4>
               <div style={{ display: 'grid', gap: '0.4rem' }}>
                 {sub.checkpointResponses.map((cp, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem', fontSize: '0.83rem' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>{cp.label}</span>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{cp.value || '—'}</span>
+                  <div key={idx} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.4rem', fontSize: '0.83rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>{cp.label}</span>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{cp.value || '—'}</span>
+                    </div>
+                    {cp.photoDataUrl && (
+                      <div style={{ marginTop: '0.4rem' }}>
+                        <img src={cp.photoDataUrl} alt="Checkpoint photo" style={{ height: '40px', borderRadius: '4px', objectFit: 'cover' }} />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

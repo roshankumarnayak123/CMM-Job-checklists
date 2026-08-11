@@ -4,6 +4,38 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import SignatureCanvas from 'react-signature-canvas';
 import ShareLinkModal from './ShareLinkModal';
 
+const REVIEW_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+
+const compressImage = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_WIDTH) {
+          height = Math.round((height * MAX_WIDTH) / width);
+          width = MAX_WIDTH;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.6));
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
+
 const withTimeout = (promise, ms, errorMsg) => {
   return Promise.race([
     promise,
@@ -37,6 +69,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
   const [isSubmitting, setIsSubmitting]     = useState(false);
   const [submittedCode, setSubmittedCode]   = useState(null);
   const [checkpointValues, setCheckpointValues] = useState({});
+  const [checkpointPhotos, setCheckpointPhotos] = useState({});
   const [cmmData, setCmmData] = useState({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
   const cmmSigRef = useRef();
   const [currentStep, setCurrentStep]       = useState(0);
@@ -51,6 +84,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     setNotes('');
     setSubmittedCode(null);
     setCheckpointValues({});
+    setCheckpointPhotos({});
     setCmmData({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
     setCurrentStep(0);
     setShareTokenId(null);
@@ -75,7 +109,8 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
       }
       return {
         label: cp.label,
-        value: val
+        value: val,
+        photoDataUrl: checkpointPhotos[cp.id] || null
       };
     });
 
@@ -115,10 +150,16 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
       alert('Please draw your signature before generating the link.');
       return;
     }
+    
+    const missingCheckpoints = selectedChecklist.checkpoints?.filter(cp => cp.type !== 'checkbox' && !checkpointValues[cp.id]) || [];
+    if (missingCheckpoints.length > 0) {
+      alert('Please fill out all required checkpoints.');
+      return;
+    }
 
     setIsGeneratingLink(true);
     const code = generateCode();
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+    const expiresAt = new Date(Date.now() + REVIEW_EXPIRY_MS);
 
     try {
       const payload = {
@@ -126,7 +167,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
         status: 'pending_review',
         createdAt: serverTimestamp(),
         expiresAt,
-        expiresAtMs: Date.now() + 60 * 60 * 1000, // pass raw ms for countdown
+        expiresAtMs: Date.now() + REVIEW_EXPIRY_MS, // pass raw ms for countdown
         ammSignature: null,
       };
 
@@ -158,6 +199,12 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
       alert("Please draw your signature.");
       return;
     }
+    
+    const missingCheckpoints = selectedChecklist.checkpoints?.filter(cp => cp.type !== 'checkbox' && !checkpointValues[cp.id]) || [];
+    if (missingCheckpoints.length > 0) {
+      alert('Please fill out all required checkpoints.');
+      return;
+    }
 
     setIsSubmitting(true);
     const code = generateCode();
@@ -187,6 +234,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     setNotes('');
     setSubmittedCode(null);
     setCheckpointValues({});
+    setCheckpointPhotos({});
     setCmmData({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
     setCurrentStep(0);
     setShareTokenId(null);
@@ -383,6 +431,48 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                           </span>
                         </div>
                       )}
+
+                      <div className="checkpoint-photo-section" style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
+                        {checkpointPhotos[cp.id] ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <img src={checkpointPhotos[cp.id]} alt="Attached" style={{ height: '60px', borderRadius: '4px', objectFit: 'cover' }} />
+                            <button 
+                              type="button" 
+                              className="secondary-btn" 
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCheckpointPhotos(prev => ({ ...prev, [cp.id]: null }));
+                              }}
+                            >
+                              Remove Photo
+                            </button>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="secondary-btn" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }} onClick={e => e.stopPropagation()}>
+                              <span>📷 Attach Photo</span>
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                style={{ display: 'none' }}
+                                onChange={async (e) => {
+                                  e.stopPropagation();
+                                  const file = e.target.files[0];
+                                  if (!file) return;
+                                  try {
+                                    const compressed = await compressImage(file);
+                                    setCheckpointPhotos(prev => ({ ...prev, [cp.id]: compressed }));
+                                  } catch (err) {
+                                    console.error('Error compressing image:', err);
+                                    alert('Failed to process image.');
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -440,7 +530,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                     key={selectedChecklist.id}
                     ref={cmmSigRef}
                     penColor="#1e40af"
-                    canvasProps={{ className: 'sigCanvas', style: { width: '100%', height: '140px', touchAction: 'none' } }}
+                    canvasProps={{ width: 500, height: 140, className: 'sigCanvas', style: { width: '100%', height: '140px', touchAction: 'none' } }}
                   />
                   <button type="button" onClick={() => cmmSigRef.current?.clear()} className="sig-clear-btn">Clear</button>
                   <div className="sig-placeholder-line"></div>

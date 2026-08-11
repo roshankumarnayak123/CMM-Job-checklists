@@ -15,7 +15,11 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
   const [showSettings, setShowSettings]       = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal]     = useState(false);
-  const [adminTab, setAdminTab]               = useState(() => localStorage.getItem('adminTab') || 'dashboard'); // 'dashboard', 'templates', 'submissions'
+  const VALID_TABS = ['dashboard', 'templates', 'submissions'];
+  const [adminTab, setAdminTab]               = useState(() => {
+    const saved = localStorage.getItem('adminTab');
+    return VALID_TABS.includes(saved) ? saved : 'dashboard';
+  });
   const [submissions, setSubmissions]         = useState([]);
   const [limitCount, setLimitCount]           = useState(20);
   const [pendingTokens, setPendingTokens]     = useState([]);
@@ -26,17 +30,23 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
 
   useEffect(() => {
     const q = query(collection(db, 'filled_checklists'), orderBy('submittedAt', 'desc'), limit(limitCount));
-    const unsubscribe = onSnapshot(q, snapshot =>
-      setSubmissions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })))
-    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setSubmissions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      console.error('Failed to load filled checklists:', error);
+    });
     return () => unsubscribe();
   }, [limitCount]);
 
   // Bug #6 fix: load pending review tokens so they appear in CSV export
   useEffect(() => {
-    getDocs(query(collection(db, 'review_tokens'), orderBy('createdAt', 'desc')))
-      .then(snap => setPendingTokens(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
-      .catch(err => console.error('Failed to load review tokens:', err));
+    const q = query(collection(db, 'review_tokens'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setPendingTokens(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => {
+      console.error('Failed to load review tokens:', err);
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleLogout = async () => await signOut(auth);

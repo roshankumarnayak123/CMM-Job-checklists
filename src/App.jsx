@@ -36,6 +36,7 @@ function App() {
   const [selectedChecklist, setSelectedChecklist] = useState(null);
   const [checklists, setChecklists] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [syncError, setSyncError] = useState(false);
   const [theme, setTheme] = useState('dark');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [username, setUsername] = useState('');
@@ -73,6 +74,11 @@ function App() {
     const unsubscribe = onSnapshot(collection(db, 'checklists'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setChecklists(data);
+      setLoading(false);
+      setSyncError(false);
+    }, (error) => {
+      console.error('Firestore sync error:', error);
+      setSyncError(true);
       setLoading(false);
     });
     return () => unsubscribe();
@@ -139,8 +145,8 @@ function App() {
         <div className="header-actions">
           <LiveClock />
           <div className="cloud-sync-status">
-            <div className="status-dot online"></div>
-            <span className="sync-label">Live</span>
+            <div className={`status-dot ${syncError ? '' : 'online'}`} style={syncError ? { backgroundColor: 'var(--neon-red)', boxShadow: '0 0 8px var(--neon-red)' } : {}}></div>
+            <span className="sync-label">{syncError ? 'Offline' : 'Live'}</span>
           </div>
           <button className="theme-toggle-inline" onClick={toggleTheme} title="Toggle Theme">
             {theme === 'dark' ? '☀️' : '🌙'}

@@ -10,7 +10,10 @@ export function generatePDFReport(sub) {
         <tr>
           <td class="cp-num">${i + 1}</td>
           <td class="cp-label">${escape(cp.label)}</td>
-          <td class="cp-value">${escape(cp.value) || '<span style="color:#94a3b8">—</span>'}</td>
+          <td class="cp-value">
+            ${escape(cp.value) || '<span style="color:#94a3b8">—</span>'}
+            ${cp.photoDataUrl ? `<div style="margin-top: 8px;"><img src="${cp.photoDataUrl}" style="max-height: 80px; border-radius: 4px; object-fit: cover;" alt="Checkpoint Photo"></div>` : ''}
+          </td>
         </tr>`).join('')
     : `<tr><td colspan="3" style="text-align:center;padding:1.5rem;color:#94a3b8;font-style:italic">No checkpoints recorded</td></tr>`;
 
@@ -175,5 +178,4 @@ export function generatePDFReport(sub) {
   const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
   const url  = URL.createObjectURL(blob);
   window.open(url, '_blank');
-  setTimeout(() => URL.revokeObjectURL(url), 120000);
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { db } from './firebase';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
 import SignatureCanvas from 'react-signature-canvas';
 
 export default function ReviewPage({ tokenId }) {
@@ -72,6 +72,26 @@ export default function ReviewPage({ tokenId }) {
         ammSignature,
         completedAt: serverTimestamp(),
       });
+      
+      const payloadBase = {
+        checklistId: tokenData.checklistId,
+        checklistTitle: tokenData.checklistTitle,
+        fillerName: tokenData.fillerName,
+        notes: tokenData.notes,
+        uniqueCode: tokenData.uniqueCode,
+        checkpointResponses: tokenData.checkpointResponses,
+      };
+      
+      await addDoc(collection(db, 'filled_checklists'), {
+        ...payloadBase,
+        submittedAt: serverTimestamp(),
+        signatures: {
+          cmm: tokenData.cmmSignature,
+          amm: ammSignature
+        },
+        reviewMode: 'remote'
+      });
+      
       setStatus('success');
     } catch (err) {
       console.error('Error submitting review:', err);
@@ -227,6 +247,12 @@ export default function ReviewPage({ tokenId }) {
                   <div className="review-cp-value">
                     {cp.value || <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>No response</span>}
                   </div>
+                  {cp.photoDataUrl && (
+                    <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '0.25rem' }}>Attached Photo:</span>
+                      <img src={cp.photoDataUrl} alt="Checkpoint attachment" style={{ height: '60px', borderRadius: '4px', objectFit: 'cover' }} />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

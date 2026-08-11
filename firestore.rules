@@ -19,7 +19,7 @@ service cloud.firestore {
       allow create: if true;
       allow read: if true;
       // Anyone can update it (to add their signature)
-      allow update: if true;
+      allow update: if request.time < resource.data.expiresAt;
       allow delete: if request.auth != null;
     }
   }
