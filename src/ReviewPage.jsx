@@ -44,6 +44,15 @@ export default function ReviewPage({ tokenId }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Bug #4 fix: validate all AMM fields explicitly
+    if (!ammData.name.trim()) {
+      setSubmitError('Please enter your full name.');
+      return;
+    }
+    if (!ammData.designation.trim()) {
+      setSubmitError('Please enter your designation.');
+      return;
+    }
     if (ammSigRef.current?.isEmpty()) {
       setSubmitError('Please draw your signature before submitting.');
       return;

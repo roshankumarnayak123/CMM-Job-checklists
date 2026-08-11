@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import './App.css';
 import { auth, db } from './firebase';
 import { signOut } from 'firebase/auth';
-import { collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { generatePDFReport } from './utils/pdfGenerator';
 
 import SettingsModal from './components/admin/SettingsModal';
@@ -18,6 +18,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
   const [adminTab, setAdminTab]               = useState(() => localStorage.getItem('adminTab') || 'dashboard'); // 'dashboard', 'templates', 'submissions'
   const [submissions, setSubmissions]         = useState([]);
   const [limitCount, setLimitCount]           = useState(20);
+  const [pendingTokens, setPendingTokens]     = useState([]);
 
   useEffect(() => {
     localStorage.setItem('adminTab', adminTab);
@@ -30,6 +31,13 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
     );
     return () => unsubscribe();
   }, [limitCount]);
+
+  // Bug #6 fix: load pending review tokens so they appear in CSV export
+  useEffect(() => {
+    getDocs(query(collection(db, 'review_tokens'), orderBy('createdAt', 'desc')))
+      .then(snap => setPendingTokens(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .catch(err => console.error('Failed to load review tokens:', err));
+  }, []);
 
   const handleLogout = async () => await signOut(auth);
 
@@ -60,15 +68,18 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
   };
 
   const handleExportCSV = () => {
-    if (submissions.length === 0) {
-      alert("No submissions to export.");
+    if (submissions.length === 0 && pendingTokens.length === 0) {
+      alert('No submissions to export.');
       return;
     }
-    const headers = ["ID", "Title", "Code", "Submitted At", "CMM Name", "AMM Name", "Status"];
-    const rows = submissions.map(sub => {
+    const headers = ['ID', 'Type', 'Title', 'Code', 'Date', 'CMM Name', 'AMM Name', 'Status'];
+
+    // Fully completed submissions from filled_checklists
+    const completedRows = submissions.map(sub => {
       const date = sub.submittedAt ? new Date(typeof sub.submittedAt.toDate === 'function' ? sub.submittedAt.toDate() : sub.submittedAt).toLocaleString() : 'N/A';
       return [
         sub.id,
+        'Completed',
         `"${sub.checklistTitle || ''}"`,
         sub.uniqueCode,
         `"${date}"`,
@@ -77,12 +88,29 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
         sub.signatures?.amm ? 'Completed' : 'Pending AMM'
       ].join(',');
     });
-    
-    const csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + "\n" + rows.join('\n');
+
+    // Bug #6 fix: include pending review tokens in the export
+    const pendingRows = pendingTokens
+      .filter(t => t.status !== 'completed') // skip already-completed ones (they'll be in filled_checklists)
+      .map(token => {
+        const date = token.createdAt ? new Date(typeof token.createdAt.toDate === 'function' ? token.createdAt.toDate() : token.createdAt).toLocaleString() : 'N/A';
+        return [
+          token.id,
+          'Pending Review',
+          `"${token.checklistTitle || ''}"`,
+          token.uniqueCode || '',
+          `"${date}"`,
+          `"${token.cmmSignature?.name || ''}"`,
+          '', // AMM has not signed yet
+          'Pending AMM Signature'
+        ].join(',');
+      });
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + headers.join(',') + '\n' + [...completedRows, ...pendingRows].join('\n');
     const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `submissions_export_${new Date().toISOString().split('T')[0]}.csv`);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `submissions_export_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -126,11 +126,11 @@ export default function SettingsModal({ showSettings, setShowSettings, rawCloudD
           {activeTab === 'cloud' && (
             <div className="usage-dashboard">
 
-              {/* Card 1 — Total Checklists */}
+              {/* Card 1 — Total Templates (Bug #5 fix: was misleadingly labelled "Total Checklists") */}
               <div className="usage-card">
-                <h4>Total Checklists</h4>
+                <h4>Checklist Templates</h4>
                 <div className="usage-value">{rawCloudData?.length ?? 0}</div>
-                <p className="usage-subtitle">Checklists stored in Firestore</p>
+                <p className="usage-subtitle">Templates created by admin</p>
               </div>
 
               {/* Card 2 — Storage Used Categorically */}

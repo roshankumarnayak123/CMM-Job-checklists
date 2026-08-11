@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 
 const BASE_URL = `${window.location.origin}${import.meta.env.BASE_URL}`;
 
-export default function ShareLinkModal({ tokenId, checklistTitle, fillerName, onClose }) {
+export default function ShareLinkModal({ tokenId, expiresAtMs, checklistTitle, fillerName, onClose }) {
   const reviewUrl = `${BASE_URL}?review=${tokenId}`;
   const [copied, setCopied] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(3600); // 1 hour
+  // Bug #3 fix: compute remaining seconds from actual expiry time, not a hardcoded 3600
+  const [secondsLeft, setSecondsLeft] = useState(() => Math.max(0, Math.round((expiresAtMs - Date.now()) / 1000)));
 
   // Countdown timer
   useEffect(() => {

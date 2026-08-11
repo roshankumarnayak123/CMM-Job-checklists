@@ -58,8 +58,8 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
 
   const generateCode = () => {
     // Generate a short 10-character alphanumeric code for easy sharing
-    return crypto.randomUUID().split('-')[0].toUpperCase() + 
-           crypto.randomUUID().split('-')[1].toUpperCase();
+    const parts = crypto.randomUUID().split('-');
+    return parts[0].toUpperCase() + parts[1].toUpperCase();
   };
 
   const handleCheckpointChange = (id, value) =>
@@ -101,8 +101,22 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
   const handleGenerateLink = async (e) => {
     e.preventDefault();
     if (!selectedChecklist) return;
-    setIsGeneratingLink(true);
 
+    // Bug #1 fix: validate before touching Firestore
+    if (!fillerName.trim()) {
+      alert('Please enter your name (Filled By).');
+      return;
+    }
+    if (!cmmData.name.trim() || !cmmData.designation.trim() || !cmmData.date) {
+      alert('Please fill in all CMM signature details (Name, Designation, Date).');
+      return;
+    }
+    if (cmmSigRef.current?.isEmpty()) {
+      alert('Please draw your signature before generating the link.');
+      return;
+    }
+
+    setIsGeneratingLink(true);
     const code = generateCode();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
@@ -112,14 +126,15 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
         status: 'pending_review',
         createdAt: serverTimestamp(),
         expiresAt,
+        expiresAtMs: Date.now() + 60 * 60 * 1000, // pass raw ms for countdown
         ammSignature: null,
       };
 
-      const docRef = await withTimeout(addDoc(collection(db, 'review_tokens'), payload), 15000, "Database write timed out.");
-      setShareTokenId(docRef.id);
+      const docRef = await withTimeout(addDoc(collection(db, 'review_tokens'), payload), 15000, 'Database write timed out.');
+      setShareTokenId({ id: docRef.id, expiresAtMs: payload.expiresAtMs });
     } catch (err) {
       console.error('Error generating review link:', err);
-      alert(err.message || "Failed to generate link. Check Firestore rules and Storage configuration.");
+      alert(err.message || 'Failed to generate link. Check your internet connection and Firestore rules.');
     } finally {
       setIsGeneratingLink(false);
     }
@@ -475,7 +490,8 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
       {/* Share Link Modal */}
       {shareTokenId && (
         <ShareLinkModal
-          tokenId={shareTokenId}
+          tokenId={shareTokenId.id}
+          expiresAtMs={shareTokenId.expiresAtMs}
           checklistTitle={selectedChecklist.title}
           fillerName={fillerName.trim() || 'Anonymous'}
           onClose={() => { setShareTokenId(null); handleReset(); }}
