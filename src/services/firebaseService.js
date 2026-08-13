@@ -1,6 +1,7 @@
-import { db, auth } from '../firebase';
+import { db, auth, storage } from '../firebase';
 import { collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
 import { signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut } from 'firebase/auth';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export const firebaseService = {
   // Checklists
@@ -43,4 +44,9 @@ export const firebaseService = {
   
   // Utils
   getServerTimestamp: () => serverTimestamp(),
+  uploadImage: async (blob, path) => {
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, blob);
+    return await getDownloadURL(storageRef);
+  },
 };

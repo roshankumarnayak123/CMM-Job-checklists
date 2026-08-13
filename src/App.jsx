@@ -38,7 +38,7 @@ function App() {
   const [checklists, setChecklists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState(false);
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState(() => localStorage.getItem('app-theme') || 'dark');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -90,15 +90,27 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  const toggleTheme = () => {
+    setTheme(prev => {
+      const nextTheme = prev === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('app-theme', nextTheme);
+      return nextTheme;
+    });
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
       await firebaseService.login(username, password);
       setLoginError('');
-    } catch {
-      setLoginError('Invalid credentials. Please try again.');
+    } catch (err) {
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+        setLoginError('Invalid email or password.');
+      } else if (err.code === 'auth/too-many-requests') {
+        setLoginError('Too many failed attempts. Try again later.');
+      } else {
+        setLoginError(err.message || 'Login failed. Please check your connection and try again.');
+      }
     }
   };
 
@@ -114,7 +126,13 @@ function App() {
   }
 
   if (!authResolved) {
-    return <div className="background-3d" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'white' }}>Loading...</div>;
+    return (
+      <div className="background-3d" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'white', gap: '1rem' }}>
+        <div className="review-spinner-big">⚙️</div>
+        <h2 style={{ fontFamily: 'var(--font-display)', letterSpacing: '0.05em' }}>CMM Checklist</h2>
+        <p style={{ color: 'var(--text-secondary)' }}>Authenticating...</p>
+      </div>
+    );
   }
 
   return (

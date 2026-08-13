@@ -27,7 +27,15 @@ const compressImage = (file) => {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.6));
+        
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            reject(new Error('Canvas to Blob failed'));
+            return;
+          }
+          const previewUrl = URL.createObjectURL(blob);
+          resolve({ blob, previewUrl });
+        }, 'image/jpeg', 0.6);
       };
       img.onerror = (err) => reject(err);
     };
@@ -122,6 +130,17 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     }
   }, [fillerName, notes, cmmData, checkpointValues, currentStep, selectedChecklist]);
 
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(checkpointPhotos).forEach(photoData => {
+        if (photoData && photoData.previewUrl) {
+          URL.revokeObjectURL(photoData.previewUrl);
+        }
+      });
+    };
+  }, [checkpointPhotos]);
+
   const generateCode = () => {
     // Generate a short 10-character alphanumeric code for easy sharing
     const parts = crypto.randomUUID().split('-');
@@ -131,7 +150,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
   const handleCheckpointChange = (id, value) =>
     setCheckpointValues(prev => ({ ...prev, [id]: value }));
 
-  const buildPayload = (code) => {
+  const buildPayload = (code, uploadedImageUrls) => {
     const formattedCheckpoints = (selectedChecklist.checkpoints || []).map(cp => {
       let val = checkpointValues[cp.id];
       if (cp.type === 'checkbox') {
@@ -142,7 +161,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
       return {
         label: cp.label,
         value: val,
-        photoDataUrl: checkpointPhotos[cp.id] || null
+        photoDataUrl: uploadedImageUrls[cp.id] || null
       };
     });
 
@@ -162,6 +181,19 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
   };
 
   /* ── Generate Review Link (saves draft, opens share modal) ── */
+  const uploadPhotos = async () => {
+    const uploadedImageUrls = {};
+    const uploadPromises = Object.entries(checkpointPhotos).map(async ([cpId, photoData]) => {
+      if (photoData && photoData.blob) {
+        const path = `checkpoint_images/${crypto.randomUUID()}`;
+        const url = await firebaseService.uploadImage(photoData.blob, path);
+        uploadedImageUrls[cpId] = url;
+      }
+    });
+    await Promise.all(uploadPromises);
+    return uploadedImageUrls;
+  };
+
   const handleGenerateLink = async (e) => {
     e.preventDefault();
     if (!selectedChecklist) return;
@@ -185,8 +217,9 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     const code = generateCode();
 
     try {
+      const uploadedImageUrls = await uploadPhotos();
       const payload = {
-        ...buildPayload(code),
+        ...buildPayload(code, uploadedImageUrls),
         status: 'pending_review',
         createdAt: firebaseService.getServerTimestamp(),
         expiresAt: new Date(Date.now() + REVIEW_EXPIRY_MS),
@@ -228,7 +261,8 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     const code = generateCode();
 
     try {
-      const payloadBase = buildPayload(code);
+      const uploadedImageUrls = await uploadPhotos();
+      const payloadBase = buildPayload(code, uploadedImageUrls);
       await withTimeout(firebaseService.submitChecklist({
         ...payloadBase,
         submittedAt: firebaseService.getServerTimestamp(),
@@ -453,14 +487,19 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                       <div className="checkpoint-photo-section" style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
                         {checkpointPhotos[cp.id] ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <img src={checkpointPhotos[cp.id]} alt="Attached" style={{ height: '60px', borderRadius: '4px', objectFit: 'cover' }} />
+                            <img src={checkpointPhotos[cp.id].previewUrl} alt="Attached" style={{ height: '60px', borderRadius: '4px', objectFit: 'cover' }} />
                             <button 
                               type="button" 
                               className="secondary-btn" 
                               style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setCheckpointPhotos(prev => ({ ...prev, [cp.id]: null }));
+                                setCheckpointPhotos(prev => {
+                                  if (prev[cp.id] && prev[cp.id].previewUrl) {
+                                    URL.revokeObjectURL(prev[cp.id].previewUrl);
+                                  }
+                                  return { ...prev, [cp.id]: null };
+                                });
                               }}
                             >
                               Remove Photo
@@ -485,7 +524,12 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                                   try {
                                     setCompressingImageId(cp.id);
                                     const compressed = await compressImage(file);
-                                    setCheckpointPhotos(prev => ({ ...prev, [cp.id]: compressed }));
+                                    setCheckpointPhotos(prev => {
+                                      if (prev[cp.id] && prev[cp.id].previewUrl) {
+                                        URL.revokeObjectURL(prev[cp.id].previewUrl);
+                                      }
+                                      return { ...prev, [cp.id]: compressed };
+                                    });
                                   } catch (err) {
                                     console.error('Error compressing image:', err);
                                     toast.error('Failed to process image.');
