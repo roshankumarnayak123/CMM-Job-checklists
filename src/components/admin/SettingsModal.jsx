@@ -2,15 +2,19 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { auth, db } from '../../firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
+import { toast } from 'react-hot-toast';
+import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 
 const SETTINGS_TABS = [
   { id: 'cloud', icon: '📊', label: 'Cloud Usage' },
   { id: 'account', icon: '👤', label: 'Account' },
+  { id: 'manual', icon: '📘', label: 'Store Manual' },
   { id: 'audit', icon: '📝', label: 'Audit Log' }
 ];
 
 export default function SettingsModal({ showSettings, setShowSettings, rawCloudData }) {
+  useLockBodyScroll(showSettings);
   const [activeTab, setActiveTab] = useState('cloud');
   const [storageStats, setStorageStats] = useState({
     templates: 0,
@@ -205,16 +209,43 @@ export default function SettingsModal({ showSettings, setShowSettings, rawCloudD
                   if (auth.currentUser?.email) {
                     try {
                       await sendPasswordResetEmail(auth, auth.currentUser.email);
-                      alert('Password reset link sent to your email.');
+                      toast.success('Password reset link sent to your email.');
                     } catch (err) {
                       console.error('Error sending reset email:', err);
-                      alert('Failed to send password reset email.');
+                      toast.error('Failed to send password reset email.');
                     }
                   }
                 }}
               >
                 Reset Password
               </button>
+            </div>
+          )}
+          {activeTab === 'manual' && (
+            <div className="settings-section animate-fade-in" style={{ padding: '1rem' }}>
+              <h4>Store Operations Manual</h4>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                Access the official CMM SMS Store Operations Training Manual. You can view it in your browser or download the PDF for offline access.
+              </p>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <a 
+                  href="/CMM_SMS_Store_Training_Manual.pdf" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="primary-btn"
+                  style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  👁️ View Manual
+                </a>
+                <a 
+                  href="/CMM_SMS_Store_Training_Manual.pdf" 
+                  download="CMM_SMS_Store_Training_Manual.pdf"
+                  className="secondary-btn"
+                  style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  📥 Download PDF
+                </a>
+              </div>
             </div>
           )}
           {activeTab === 'audit' && (

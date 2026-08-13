@@ -1,20 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
-import { db } from './firebase';
-import { doc, getDoc, updateDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
-import SignatureCanvas from 'react-signature-canvas';
+import { useState, useEffect } from 'react';
+import { firebaseService } from './services/firebaseService';
 
 export default function ReviewPage({ tokenId }) {
   const [status, setStatus] = useState('loading'); // loading | expired | already_signed | ready | submitting | success | error
   const [tokenData, setTokenData] = useState(null);
   const [ammData, setAmmData] = useState({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
-  const ammSigRef = useRef();
   const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
     async function fetchToken() {
       try {
-        const ref = doc(db, 'review_tokens', tokenId);
-        const snap = await getDoc(ref);
+        const snap = await firebaseService.getReviewToken(tokenId);
         if (!snap.exists()) {
           setStatus('error');
           return;
@@ -53,24 +49,13 @@ export default function ReviewPage({ tokenId }) {
       setSubmitError('Please enter your designation.');
       return;
     }
-    if (ammSigRef.current?.isEmpty()) {
-      setSubmitError('Please draw your signature before submitting.');
-      return;
-    }
     setSubmitError('');
     setStatus('submitting');
     try {
-      const ammSigDataUrl = ammSigRef.current.getCanvas().toDataURL('image/png');
-
-      const refDoc = doc(db, 'review_tokens', tokenId);
-      const ammSignature = {
-        ...ammData,
-        signatureDataUrl: ammSigDataUrl,
-      };
-      await updateDoc(refDoc, {
+      await firebaseService.updateReviewToken(tokenId, {
         status: 'completed',
-        ammSignature,
-        completedAt: serverTimestamp(),
+        ammSignature: ammData,
+        completedAt: firebaseService.getServerTimestamp(),
       });
       
       const payloadBase = {
@@ -82,14 +67,14 @@ export default function ReviewPage({ tokenId }) {
         checkpointResponses: tokenData.checkpointResponses,
       };
       
-      await addDoc(collection(db, 'filled_checklists'), {
+      await firebaseService.submitChecklist({
         ...payloadBase,
-        submittedAt: serverTimestamp(),
+        submittedAt: new Date().toISOString(),
         signatures: {
           cmm: tokenData.cmmSignature,
-          amm: ammSignature
+          amm: ammData
         },
-        reviewMode: 'remote'
+        reviewMode: 'link'
       });
       
       setStatus('success');
@@ -282,13 +267,6 @@ export default function ReviewPage({ tokenId }) {
               <div><span className="review-sig-label">Designation:</span> <strong>{cmmSig?.designation || '—'}</strong></div>
               <div><span className="review-sig-label">Date:</span> <strong>{cmmSig?.date || '—'}</strong></div>
             </div>
-            {cmmSig?.signatureDataUrl ? (
-              <div className="review-sig-image-wrap">
-                <img src={cmmSig.signatureDataUrl} alt="CMM Signature" className="review-sig-image" />
-              </div>
-            ) : (
-              <p style={{ color: 'var(--text-tertiary)', fontStyle: 'italic', fontSize: '0.85rem' }}>No signature image available</p>
-            )}
           </div>
         </div>
 
@@ -334,19 +312,6 @@ export default function ReviewPage({ tokenId }) {
                 onChange={e => setAmmData({ ...ammData, date: e.target.value })}
                 className="styled-input"
               />
-            </div>
-
-            <div className="signature-pad-container" style={{ marginTop: '1rem' }}>
-              <label>Draw Signature <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-              <div className="sig-pad-wrapper">
-                <SignatureCanvas
-                  ref={ammSigRef}
-                  penColor="#1e40af"
-                  canvasProps={{ width: 500, height: 140, className: 'sigCanvas', style: { width: '100%', height: '140px' } }}
-                />
-                <button type="button" onClick={() => ammSigRef.current?.clear()} className="sig-clear-btn">Clear</button>
-                <div className="sig-placeholder-line" />
-              </div>
             </div>
 
             {submitError && (

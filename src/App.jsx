@@ -4,10 +4,11 @@ const AdminView = lazy(() => import('./AdminView'));
 import FillChecklistView from './FillChecklistView';
 import ReviewPage from './ReviewPage';
 import PWAInstallPrompt from './PWAInstallPrompt';
+import ErrorBoundary from './components/ErrorBoundary';
+import { Toaster } from 'react-hot-toast';
 import './App.css';
-import { auth, db } from './firebase';
-import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { firebaseService } from './services/firebaseService';
+import { useLockBodyScroll } from './hooks/useLockBodyScroll';
 
 // Live clock component
 function LiveClock() {
@@ -45,6 +46,8 @@ function App() {
   // Mobile: which tab is active — 'list' | 'content'
   const [mobileTab, setMobileTab] = useState('list');
 
+  useLockBodyScroll(showLoginModal);
+
   // Mouse parallax for aurora & 3D background
   const handleMouseMove = useCallback((e) => {
     if (document.hidden) return;
@@ -62,7 +65,7 @@ function App() {
   }, [handleMouseMove]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = firebaseService.onAuthStateChanged((user) => {
       setIsAdminLoggedIn(!!user);
       setAuthResolved(true);
       if (user) setShowLoginModal(false);
@@ -71,8 +74,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'checklists'), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const unsubscribe = firebaseService.subscribeToChecklists((data) => {
       setChecklists(data);
       setLoading(false);
       setSyncError(false);
@@ -93,7 +95,7 @@ function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      await signInWithEmailAndPassword(auth, username, password);
+      await firebaseService.login(username, password);
       setLoginError('');
     } catch {
       setLoginError('Invalid credentials. Please try again.');
@@ -116,7 +118,8 @@ function App() {
   }
 
   return (
-    <>
+    <ErrorBoundary>
+      <Toaster position="bottom-center" />
       {/* ── Animated 3D Background ── */}
       <div className="background-3d">
         <div className="shape-3d cube"></div>
@@ -227,7 +230,16 @@ function App() {
         {/* Right pane — hidden on mobile when list tab active */}
         <div className={`right-pane-wrapper ${mobileTab === 'content' ? 'mobile-active' : 'mobile-hidden'}`}>
           {isAdminLoggedIn ? (
-            <Suspense fallback={<div className="spinner-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><span className="spinner"></span> Loading Admin...</div>}>
+            <Suspense fallback={
+              <div style={{ padding: '24px', width: '100%' }}>
+                <div style={{ display: 'flex', gap: '20px', marginBottom: '24px', flexWrap: 'wrap' }}>
+                  <div className="skeleton" style={{ width: '220px', height: '120px', borderRadius: '12px' }}></div>
+                  <div className="skeleton" style={{ width: '220px', height: '120px', borderRadius: '12px' }}></div>
+                  <div className="skeleton" style={{ width: '220px', height: '120px', borderRadius: '12px' }}></div>
+                </div>
+                <div className="skeleton" style={{ width: '100%', height: '400px', borderRadius: '12px' }}></div>
+              </div>
+            }>
               <AdminView
                 selectedChecklist={selectedChecklist}
                 setSelectedChecklist={handleSelectChecklist}
@@ -269,7 +281,7 @@ function App() {
 
       {/* ── PWA Install Prompt ── */}
       <PWAInstallPrompt />
-    </>
+    </ErrorBoundary>
   );
 }
 

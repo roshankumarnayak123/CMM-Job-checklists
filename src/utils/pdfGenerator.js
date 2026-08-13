@@ -30,10 +30,7 @@ export function generatePDFReport(sub) {
             <div><span class="si-label">Designation:</span> <span class="si-val">${escape(sig.designation || '—')}</span></div>
             <div><span class="si-label">Date:</span> <span class="si-val">${escape(sig.date || '—')}</span></div>
           </div>
-          ${sig.signatureDataUrl
-            ? `<img class="sig-image" src="${sig.signatureDataUrl}" alt="${title} Signature">`
-            : '<p class="sig-missing">No signature drawn</p>'
-          }
+          <p class="sig-missing" style="color: #16a34a; font-weight: 600;">Approved</p>
         ` : '<p class="sig-missing">Not signed</p>'}
       </div>
     </div>`;

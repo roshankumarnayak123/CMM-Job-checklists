@@ -40,7 +40,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 1.5rem;
+  padding: env(safe-area-inset-top) 1.5rem 0 1.5rem;
   z-index: 200;
   border-bottom: 1px solid var(--border);
   background: rgba(5, 11, 24, 0.85);
@@ -1798,8 +1798,8 @@
 
   /* ── Header ── */
   .top-header {
-    padding: 0 0.85rem;
-    height: 56px;
+    padding: env(safe-area-inset-top, 0px) 0.85rem 0;
+    height: calc(56px + env(safe-area-inset-top, 0px));
   }
 
   .app-logo-text { font-size: 0.92rem; }
@@ -1905,9 +1905,17 @@
   /* ── Cards — remove 3D tilt on touch (performance + UX) ── */
   .checklist-card { transform: none !important; }
 
-  /* ── Search box ── */
+  /* ── Search box & Inputs (prevent iOS zoom) ── */
   .search-header { padding: 0.85rem; }
-  .search-bar input { font-size: 1rem; } /* prevent iOS zoom-in on focus */
+  .search-bar input,
+  .input-group input,
+  .checkpoint-item input,
+  .checkpoint-item textarea,
+  .checkpoint-item select,
+  .share-url-input,
+  input[type="text"], input[type="number"], input[type="email"], input[type="password"], textarea { 
+    font-size: 16px !important; 
+  }
 
   /* ── Checklist container scrollable ── */
   .checklist-container { padding-bottom: 0.5rem; }
@@ -2125,6 +2133,17 @@
 }
 
 .review-spinner-big { font-size: 2.5rem; animation: spin 1.5s linear infinite; }
+
+.skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 
 .review-meta-card  { padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 0.6rem; }
 .review-meta-title { font-size: 1.15rem; font-weight: 800; color: var(--text-primary); font-family: var(--font-display); }

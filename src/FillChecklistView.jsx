@@ -1,8 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
-import { db } from './firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import SignatureCanvas from 'react-signature-canvas';
+import { useState, useEffect } from 'react';
+import { firebaseService } from './services/firebaseService';
 import ShareLinkModal from './ShareLinkModal';
+import { toast } from 'react-hot-toast';
 
 const REVIEW_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
@@ -70,8 +69,8 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
   const [submittedCode, setSubmittedCode]   = useState(null);
   const [checkpointValues, setCheckpointValues] = useState({});
   const [checkpointPhotos, setCheckpointPhotos] = useState({});
+  const [compressingImageId, setCompressingImageId] = useState(null);
   const [cmmData, setCmmData] = useState({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
-  const cmmSigRef = useRef();
   const [currentStep, setCurrentStep]       = useState(0);
   const totalSteps = 3;
 
@@ -80,15 +79,48 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
 
   useEffect(() => {
+    setSubmittedCode(null);
+    setShareTokenId(null);
+    setCheckpointPhotos({});
+    
+    const initialValues = {};
+    if (selectedChecklist?.checkpoints) {
+      selectedChecklist.checkpoints.forEach(cp => {
+        initialValues[cp.id] = '';
+      });
+    }
+
+    if (selectedChecklist?.id) {
+      const draftStr = localStorage.getItem(`draft_${selectedChecklist.id}`);
+      if (draftStr) {
+        try {
+          const draft = JSON.parse(draftStr);
+          setFillerName(draft.fillerName || '');
+          setNotes(draft.notes || '');
+          setCmmData(draft.cmmData || { name: '', designation: '', date: new Date().toISOString().split('T')[0] });
+          setCheckpointValues(draft.checkpointValues || initialValues);
+          setCurrentStep(draft.currentStep || 0);
+          return;
+        } catch (err) {
+          console.error('Failed to parse draft', err);
+        }
+      }
+    }
+    
     setFillerName('');
     setNotes('');
-    setSubmittedCode(null);
-    setCheckpointValues({});
-    setCheckpointPhotos({});
+    setCheckpointValues(initialValues);
     setCmmData({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
     setCurrentStep(0);
-    setShareTokenId(null);
   }, [selectedChecklist]);
+
+  // Autosave
+  useEffect(() => {
+    if (selectedChecklist?.id) {
+      const draft = { fillerName, notes, cmmData, checkpointValues, currentStep };
+      localStorage.setItem(`draft_${selectedChecklist.id}`, JSON.stringify(draft));
+    }
+  }, [fillerName, notes, cmmData, checkpointValues, currentStep, selectedChecklist]);
 
   const generateCode = () => {
     // Generate a short 10-character alphanumeric code for easy sharing
@@ -115,10 +147,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     });
 
     const cmmSignature = {
-      ...cmmData,
-      signatureDataUrl: (cmmSigRef.current && !cmmSigRef.current.isEmpty()) 
-        ? cmmSigRef.current.getCanvas().toDataURL('image/png')
-        : null
+      ...cmmData
     };
 
     return {
@@ -139,43 +168,37 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
 
     // Bug #1 fix: validate before touching Firestore
     if (!fillerName.trim()) {
-      alert('Please enter your name (Filled By).');
+      toast.error('Please enter your name (Filled By).');
       return;
     }
     if (!cmmData.name.trim() || !cmmData.designation.trim() || !cmmData.date) {
-      alert('Please fill in all CMM signature details (Name, Designation, Date).');
+      toast.error('Please fill in all CMM details (Name, Designation, Date).');
       return;
     }
-    if (cmmSigRef.current?.isEmpty()) {
-      alert('Please draw your signature before generating the link.');
-      return;
-    }
-    
-    const missingCheckpoints = selectedChecklist.checkpoints?.filter(cp => cp.type !== 'checkbox' && !checkpointValues[cp.id]) || [];
-    if (missingCheckpoints.length > 0) {
-      alert('Please fill out all required checkpoints.');
+    const hasUnansweredRequired = selectedChecklist.checkpoints?.some(cp => cp.required && !checkpointValues[cp.id]);
+    if (hasUnansweredRequired) {
+      toast.error('Please fill out all required checkpoints.');
       return;
     }
 
     setIsGeneratingLink(true);
     const code = generateCode();
-    const expiresAt = new Date(Date.now() + REVIEW_EXPIRY_MS);
 
     try {
       const payload = {
         ...buildPayload(code),
         status: 'pending_review',
-        createdAt: serverTimestamp(),
-        expiresAt,
-        expiresAtMs: Date.now() + REVIEW_EXPIRY_MS, // pass raw ms for countdown
+        createdAt: firebaseService.getServerTimestamp(),
+        expiresAt: new Date(Date.now() + REVIEW_EXPIRY_MS),
+        expiresAtMs: Date.now() + REVIEW_EXPIRY_MS,
         ammSignature: null,
       };
-
-      const docRef = await withTimeout(addDoc(collection(db, 'review_tokens'), payload), 15000, 'Database write timed out.');
+      
+      const docRef = await withTimeout(firebaseService.createReviewToken(payload), 15000, 'Database write timed out.');
       setShareTokenId({ id: docRef.id, expiresAtMs: payload.expiresAtMs });
     } catch (err) {
       console.error('Error generating review link:', err);
-      alert(err.message || 'Failed to generate link. Check your internet connection and Firestore rules.');
+      toast.error(err.message || 'Failed to generate link. Check your internet connection and Firestore rules.');
     } finally {
       setIsGeneratingLink(false);
     }
@@ -188,21 +211,16 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     
     // Validate required fields
     if (!fillerName.trim()) {
-      alert("Please enter your name (Filled By).");
+      toast.error("Please enter your name (Filled By).");
       return;
     }
     if (!cmmData.name.trim() || !cmmData.designation.trim() || !cmmData.date) {
-      alert("Please fill in all CMM signature details.");
+      toast.error("Please fill in all CMM details.");
       return;
     }
-    if (cmmSigRef.current?.isEmpty()) {
-      alert("Please draw your signature.");
-      return;
-    }
-    
-    const missingCheckpoints = selectedChecklist.checkpoints?.filter(cp => cp.type !== 'checkbox' && !checkpointValues[cp.id]) || [];
-    if (missingCheckpoints.length > 0) {
-      alert('Please fill out all required checkpoints.');
+    const hasUnansweredRequired = selectedChecklist.checkpoints?.some(cp => cp.required && !checkpointValues[cp.id]);
+    if (hasUnansweredRequired) {
+      toast.error('Please fill out all required checkpoints.');
       return;
     }
 
@@ -211,9 +229,9 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
 
     try {
       const payloadBase = buildPayload(code);
-      await withTimeout(addDoc(collection(db, 'filled_checklists'), {
+      await withTimeout(firebaseService.submitChecklist({
         ...payloadBase,
-        submittedAt: serverTimestamp(),
+        submittedAt: firebaseService.getServerTimestamp(),
         signatures: {
           cmm: payloadBase.cmmSignature,
           amm: null
@@ -221,9 +239,10 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
         reviewMode: 'direct'
       }), 15000, "Database write timed out.");
       setSubmittedCode(code);
+      localStorage.removeItem(`draft_${selectedChecklist.id}`); // clear draft on success
     } catch (err) {
-      console.error('Error submitting checklist:', err);
-      alert("Failed to submit. Make sure Firestore rules allow writes to 'filled_checklists'.");
+      console.error(err);
+      toast.error("Failed to submit. Make sure Firestore rules allow writes to 'filled_checklists'.");
     } finally {
       setIsSubmitting(false);
     }
@@ -238,7 +257,6 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     setCmmData({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
     setCurrentStep(0);
     setShareTokenId(null);
-    if (cmmSigRef.current) cmmSigRef.current.clear();
   };
 
   /* ── Empty state ── */
@@ -282,7 +300,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
               className="copy-btn"
               onClick={() => {
                 navigator.clipboard.writeText(submittedCode);
-                alert("Copied to clipboard!");
+                toast.success("Copied to clipboard!");
               }}
               style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginLeft: '0.5rem' }}
               title="Copy Tracking Code"
@@ -419,7 +437,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                         </select>
                       )}
                       {cp.type === 'checkbox' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem', cursor: 'pointer' }}>
                           <input
                             type="checkbox"
                             checked={val === 'true'}
@@ -429,7 +447,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                           <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                             {val === 'true' ? 'Yes / True' : 'No / False'}
                           </span>
-                        </div>
+                        </label>
                       )}
 
                       <div className="checkpoint-photo-section" style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
@@ -451,7 +469,11 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                         ) : (
                           <div>
                             <label className="secondary-btn" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }} onClick={e => e.stopPropagation()}>
-                              <span>📷 Attach Photo</span>
+                              {compressingImageId === cp.id ? (
+                                <span><span className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px', display: 'inline-block', marginRight: '4px' }}></span> Compressing…</span>
+                              ) : (
+                                <span>📷 Attach Photo</span>
+                              )}
                               <input 
                                 type="file" 
                                 accept="image/*" 
@@ -461,11 +483,14 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                                   const file = e.target.files[0];
                                   if (!file) return;
                                   try {
+                                    setCompressingImageId(cp.id);
                                     const compressed = await compressImage(file);
                                     setCheckpointPhotos(prev => ({ ...prev, [cp.id]: compressed }));
                                   } catch (err) {
                                     console.error('Error compressing image:', err);
-                                    alert('Failed to process image.');
+                                    toast.error('Failed to process image.');
+                                  } finally {
+                                    setCompressingImageId(null);
                                   }
                                 }}
                               />
@@ -522,19 +547,6 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
               <div className="input-group">
                 <label>Date <span style={{ color: 'var(--neon-red)' }}>*</span></label>
                 <input type="date" value={cmmData.date} onChange={e => setCmmData({ ...cmmData, date: e.target.value })} required className="styled-input" />
-              </div>
-              <div className="signature-pad-container">
-                <label>Draw Signature <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-                <div className="sig-pad-wrapper" style={{ width: '100%', maxWidth: '500px' }}>
-                  <SignatureCanvas
-                    key={selectedChecklist.id}
-                    ref={cmmSigRef}
-                    penColor="#1e40af"
-                    canvasProps={{ width: 500, height: 140, className: 'sigCanvas', style: { width: '100%', height: '140px', touchAction: 'none' } }}
-                  />
-                  <button type="button" onClick={() => cmmSigRef.current?.clear()} className="sig-clear-btn">Clear</button>
-                  <div className="sig-placeholder-line"></div>
-                </div>
               </div>
             </div>
           </div>

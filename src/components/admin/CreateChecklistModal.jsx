@@ -2,9 +2,12 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { toast } from 'react-hot-toast';
 import CheckpointsEditor from './CheckpointsEditor';
+import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 
 export default function CreateChecklistModal({ showCreateModal, setShowCreateModal }) {
+  useLockBodyScroll(showCreateModal);
   const [title, setTitle]               = useState('');
   const [description, setDescription]   = useState('');
   const [checkpoints, setCheckpoints]   = useState([]);
@@ -23,7 +26,7 @@ export default function CreateChecklistModal({ showCreateModal, setShowCreateMod
       setShowCreateModal(false);
     } catch (err) {
       console.error(err);
-      alert('Failed to create checklist.');
+      toast.error('Failed to create checklist.');
     } finally { setIsSubmitting(false); }
   };
 

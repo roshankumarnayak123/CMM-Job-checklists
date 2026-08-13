@@ -83,9 +83,6 @@ export default function SubmissionCard({ sub, onDelete }) {
                         <div>{sub.signatures[key].designation}</div>
                         <div>{sub.signatures[key].date}</div>
                       </div>
-                      {sub.signatures[key].signatureDataUrl && (
-                        <img src={sub.signatures[key].signatureDataUrl} alt={`${key} signature`} style={{ background: 'white', borderRadius: '6px', width: '100%', maxHeight: '70px', objectFit: 'contain' }} />
-                      )}
                     </>
                   ) : (
                     <div style={{ color: 'var(--text-tertiary)', fontSize: '0.78rem' }}>Not signed</div>

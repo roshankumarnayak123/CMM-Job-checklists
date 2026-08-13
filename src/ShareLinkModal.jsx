@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useLockBodyScroll } from './hooks/useLockBodyScroll';
 
 const BASE_URL = `${window.location.origin}${import.meta.env.BASE_URL}`;
 
 export default function ShareLinkModal({ tokenId, expiresAtMs, checklistTitle, fillerName, onClose }) {
+  useLockBodyScroll(true);
   const reviewUrl = `${BASE_URL}?review=${tokenId}`;
   const [copied, setCopied] = useState(false);
   // Bug #3 fix: compute remaining seconds from actual expiry time, not a hardcoded 3600

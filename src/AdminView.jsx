@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import './App.css';
-import { auth, db } from './firebase';
-import { signOut } from 'firebase/auth';
-import { collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { firebaseService } from './services/firebaseService';
 import { generatePDFReport } from './utils/pdfGenerator';
+import { toast } from 'react-hot-toast';
 
 import SettingsModal from './components/admin/SettingsModal';
 import CreateChecklistModal from './components/admin/CreateChecklistModal';
@@ -28,28 +27,26 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
     localStorage.setItem('adminTab', adminTab);
   }, [adminTab]);
 
+  // Subscribe to tokens
   useEffect(() => {
-    const q = query(collection(db, 'filled_checklists'), orderBy('submittedAt', 'desc'), limit(limitCount));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setSubmissions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (error) => {
-      console.error('Failed to load filled checklists:', error);
-    });
-    return () => unsubscribe();
-  }, [limitCount]);
-
-  // Bug #6 fix: load pending review tokens so they appear in CSV export
-  useEffect(() => {
-    const q = query(collection(db, 'review_tokens'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setPendingTokens(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => {
-      console.error('Failed to load review tokens:', err);
-    });
+    const unsubscribe = firebaseService.subscribeToTokens(
+      data => setPendingTokens(data),
+      error => console.error("Error fetching review tokens:", error)
+    );
     return () => unsubscribe();
   }, []);
 
-  const handleLogout = async () => await signOut(auth);
+  // Subscribe to completed submissions
+  useEffect(() => {
+    const unsubscribe = firebaseService.subscribeToSubmissions(
+      data => setSubmissions(data),
+      error => console.error("Error fetching submissions:", error),
+      limitCount
+    );
+    return () => unsubscribe();
+  }, [limitCount]);
+
+  const handleLogout = async () => await firebaseService.logout();
 
   const handleDeleteChecklist = async () => {
     if (!selectedChecklist) return;
@@ -57,32 +54,36 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
     if (!confirmDelete) return;
 
     try {
-      await deleteDoc(doc(db, 'checklists', selectedChecklist.id));
+      await firebaseService.deleteChecklist(selectedChecklist.id);
       if (setSelectedChecklist) setSelectedChecklist(null);
     } catch (err) {
       console.error(err);
-      alert('Failed to delete checklist.');
+      toast.error('Failed to delete checklist.');
     }
   };
 
   const handleDeleteSubmission = async (sub) => {
-    const confirmDelete = window.confirm(`Are you sure you want to delete submission ${sub.uniqueCode} (${sub.checklistTitle})?`);
-    if (!confirmDelete) return;
+    if (!window.confirm(`Are you sure you want to delete submission ${sub.uniqueCode} (${sub.checklistTitle})?`)) return;
 
     try {
-      await deleteDoc(doc(db, 'filled_checklists', sub.id));
+      await firebaseService.deleteSubmission(sub.id);
     } catch (err) {
       console.error(err);
-      alert('Failed to delete submission.');
+      toast.error('Failed to delete submission.');
     }
   };
 
   const handleExportCSV = () => {
     if (submissions.length === 0 && pendingTokens.length === 0) {
-      alert('No submissions to export.');
+      toast.error('No submissions to export.');
       return;
     }
     const headers = ['ID', 'Type', 'Title', 'Code', 'Date', 'CMM Name', 'AMM Name', 'Status'];
+
+    const escapeCSV = (str) => {
+      if (!str) return '""';
+      return `"${String(str).replace(/"/g, '""')}"`;
+    };
 
     // Fully completed submissions from filled_checklists
     const completedRows = submissions.map(sub => {
@@ -90,11 +91,11 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
       return [
         sub.id,
         'Completed',
-        `"${sub.checklistTitle || ''}"`,
+        escapeCSV(sub.checklistTitle),
         sub.uniqueCode,
-        `"${date}"`,
-        `"${sub.signatures?.cmm?.name || ''}"`,
-        `"${sub.signatures?.amm?.name || ''}"`,
+        escapeCSV(date),
+        escapeCSV(sub.signatures?.cmm?.name),
+        escapeCSV(sub.signatures?.amm?.name),
         sub.signatures?.amm ? 'Completed' : 'Pending AMM'
       ].join(',');
     });
@@ -107,11 +108,11 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
         return [
           token.id,
           'Pending Review',
-          `"${token.checklistTitle || ''}"`,
+          escapeCSV(token.checklistTitle),
           token.uniqueCode || '',
-          `"${date}"`,
-          `"${token.cmmSignature?.name || ''}"`,
-          '', // AMM has not signed yet
+          escapeCSV(date),
+          escapeCSV(token.cmmSignature?.name),
+          '""', // AMM has not signed yet
           'Pending AMM Signature'
         ].join(',');
       });
@@ -279,9 +280,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <h2>Admin Dashboard</h2>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="primary-btn" onClick={() => setShowCreateModal(true)}>
-              ✨ New Checklist
-            </button>
+            <button className="primary-btn" onClick={() => setShowCreateModal(true)}>+ New Checklist</button>
             <button
               className="secondary-btn glass-panel"
               onClick={() => setShowSettings(true)}
