@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import './App.css';
 import { firebaseService } from './services/firebaseService';
-import { generatePDFReport } from './utils/pdfGenerator';
 import { toast } from 'react-hot-toast';
+import Papa from 'papaparse';
+import { useSubmissions, usePendingTokens } from './hooks/useFirebaseSubscriptions';
 
 import SettingsModal from './components/admin/SettingsModal';
 import CreateChecklistModal from './components/admin/CreateChecklistModal';
@@ -19,58 +20,96 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
     const saved = localStorage.getItem('adminTab');
     return VALID_TABS.includes(saved) ? saved : 'dashboard';
   });
-  const [submissions, setSubmissions]         = useState([]);
   const [limitCount, setLimitCount]           = useState(20);
-  const [pendingTokens, setPendingTokens]     = useState([]);
+  const [searchTerm, setSearchTerm]           = useState('');
+  
+  const [hiddenSubmissionIds, setHiddenSubmissionIds] = useState([]);
+  const [hiddenChecklistIds, setHiddenChecklistIds] = useState([]);
+  
+  const { data: submissions, loading: submissionsLoading } = useSubmissions(limitCount);
+  const { data: pendingTokens } = usePendingTokens();
+
+  const visibleSubmissions = submissions.filter(s => !hiddenSubmissionIds.includes(s.id));
+  const visibleChecklists = rawCloudData.filter(c => !hiddenChecklistIds.includes(c.id));
 
   useEffect(() => {
     localStorage.setItem('adminTab', adminTab);
   }, [adminTab]);
 
-  // Subscribe to tokens
-  useEffect(() => {
-    const unsubscribe = firebaseService.subscribeToTokens(
-      data => setPendingTokens(data),
-      error => console.error("Error fetching review tokens:", error)
-    );
-    return () => unsubscribe();
-  }, []);
-
-  // Subscribe to completed submissions
-  useEffect(() => {
-    const unsubscribe = firebaseService.subscribeToSubmissions(
-      data => setSubmissions(data),
-      error => console.error("Error fetching submissions:", error),
-      limitCount
-    );
-    return () => unsubscribe();
-  }, [limitCount]);
-
   const handleLogout = async () => await firebaseService.logout();
 
-  const handleDeleteChecklist = async () => {
-    if (!selectedChecklist) return;
-    const confirmDelete = window.confirm(`Are you sure you want to delete "${selectedChecklist.title}"? This cannot be undone.`);
-    if (!confirmDelete) return;
+  const handleDeleteChecklist = (checklistOrId) => {
+    const checklistId = typeof checklistOrId === 'string' ? checklistOrId : checklistOrId?.id;
+    const checklistToHide = checklistId ? rawCloudData.find(c => c.id === checklistId) : selectedChecklist;
+    if (!checklistToHide) return;
 
-    try {
-      await firebaseService.deleteChecklist(selectedChecklist.id);
-      if (setSelectedChecklist) setSelectedChecklist(null);
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to delete checklist.');
+    setHiddenChecklistIds(prev => [...prev, checklistToHide.id]);
+    if (setSelectedChecklist && selectedChecklist?.id === checklistToHide.id) {
+      setSelectedChecklist(null);
     }
+    setShowEditModal(false);
+
+    let isUndone = false;
+    toast((t) => (
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <span>Checklist deleted.</span>
+        <button 
+          className="undo-toast-btn"
+          onClick={() => {
+            isUndone = true;
+            toast.dismiss(t.id);
+            setHiddenChecklistIds(prev => prev.filter(id => id !== checklistToHide.id));
+          }}
+        >
+          Undo
+        </button>
+      </div>
+    ), { duration: 5000 });
+
+    setTimeout(async () => {
+      if (!isUndone) {
+        try {
+          await firebaseService.deleteChecklist(checklistToHide.id);
+        } catch (err) {
+          console.error(err);
+          toast.error('Failed to delete checklist.');
+          setHiddenChecklistIds(prev => prev.filter(id => id !== checklistToHide.id));
+        }
+      }
+    }, 5000);
   };
 
-  const handleDeleteSubmission = async (sub) => {
-    if (!window.confirm(`Are you sure you want to delete submission ${sub.uniqueCode} (${sub.checklistTitle})?`)) return;
+  const handleDeleteSubmission = (sub) => {
+    setHiddenSubmissionIds(prev => [...prev, sub.id]);
+    
+    let isUndone = false;
+    toast((t) => (
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <span>Submission deleted.</span>
+        <button 
+          className="undo-toast-btn"
+          onClick={() => {
+            isUndone = true;
+            toast.dismiss(t.id);
+            setHiddenSubmissionIds(prev => prev.filter(id => id !== sub.id));
+          }}
+        >
+          Undo
+        </button>
+      </div>
+    ), { duration: 5000 });
 
-    try {
-      await firebaseService.deleteSubmission(sub.id);
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to delete submission.');
-    }
+    setTimeout(async () => {
+      if (!isUndone) {
+        try {
+          await firebaseService.deleteSubmission(sub.id);
+        } catch (err) {
+          console.error(err);
+          toast.error('Failed to delete submission.');
+          setHiddenSubmissionIds(prev => prev.filter(id => id !== sub.id));
+        }
+      }
+    }, 5000);
   };
 
   const handleExportCSV = () => {
@@ -78,26 +117,20 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
       toast.error('No submissions to export.');
       return;
     }
-    const headers = ['ID', 'Type', 'Title', 'Code', 'Date', 'CMM Name', 'AMM Name', 'Status'];
-
-    const escapeCSV = (str) => {
-      if (!str) return '""';
-      return `"${String(str).replace(/"/g, '""')}"`;
-    };
 
     // Fully completed submissions from filled_checklists
-    const completedRows = submissions.map(sub => {
+    const completedRows = visibleSubmissions.map(sub => {
       const date = sub.submittedAt ? new Date(typeof sub.submittedAt.toDate === 'function' ? sub.submittedAt.toDate() : sub.submittedAt).toLocaleString() : 'N/A';
-      return [
-        sub.id,
-        'Completed',
-        escapeCSV(sub.checklistTitle),
-        sub.uniqueCode,
-        escapeCSV(date),
-        escapeCSV(sub.signatures?.cmm?.name),
-        escapeCSV(sub.signatures?.amm?.name),
-        sub.signatures?.amm ? 'Completed' : 'Pending AMM'
-      ].join(',');
+      return {
+        ID: sub.id,
+        Type: 'Completed',
+        Title: sub.checklistTitle,
+        Code: sub.uniqueCode,
+        Date: date,
+        'CMM Name': sub.signatures?.cmm?.name || '',
+        'AMM Name': sub.signatures?.amm?.name || '',
+        Status: sub.signatures?.amm ? 'Completed' : 'Pending AMM'
+      };
     });
 
     // Bug #6 fix: include pending review tokens in the export
@@ -105,26 +138,33 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
       .filter(t => t.status !== 'completed') // skip already-completed ones (they'll be in filled_checklists)
       .map(token => {
         const date = token.createdAt ? new Date(typeof token.createdAt.toDate === 'function' ? token.createdAt.toDate() : token.createdAt).toLocaleString() : 'N/A';
-        return [
-          token.id,
-          'Pending Review',
-          escapeCSV(token.checklistTitle),
-          token.uniqueCode || '',
-          escapeCSV(date),
-          escapeCSV(token.cmmSignature?.name),
-          '""', // AMM has not signed yet
-          'Pending AMM Signature'
-        ].join(',');
+        return {
+          ID: token.id,
+          Type: 'Pending Review',
+          Title: token.checklistTitle,
+          Code: token.uniqueCode || '',
+          Date: date,
+          'CMM Name': token.cmmSignature?.name || '',
+          'AMM Name': '', // AMM has not signed yet
+          Status: 'Pending AMM Signature'
+        };
       });
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + headers.join(',') + '\n' + [...completedRows, ...pendingRows].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = Papa.unparse([...completedRows, ...pendingRows]);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', url);
     link.setAttribute('download', `submissions_export_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadPDF = async (sub) => {
+    const { generatePDFReport } = await import('./utils/pdfGenerator');
+    generatePDFReport(sub);
   };
 
   /* ── Tab Rendering ── */
@@ -137,14 +177,14 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
               <div className="metric-card glass-panel">
                 <div className="metric-icon">📄</div>
                 <div className="metric-info">
-                  <span className="metric-value">{submissions.length}</span>
+                  <span className="metric-value">{visibleSubmissions.length}</span>
                   <span className="metric-label">Total Filled Checklists</span>
                 </div>
               </div>
               <div className="metric-card glass-panel">
                 <div className="metric-icon">⏳</div>
                 <div className="metric-info">
-                  <span className="metric-value">{submissions.filter(s => !s.signatures?.amm).length}</span>
+                  <span className="metric-value">{visibleSubmissions.filter(s => !s.signatures?.amm).length}</span>
                   <span className="metric-label">Pending AMM Signatures</span>
                 </div>
               </div>
@@ -156,13 +196,19 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
                 📥 Export CSV
               </button>
             </div>
-            {submissions.length === 0 ? (
+            {submissionsLoading && submissions.length === 0 ? (
+               <div className="horizontal-submissions-scroll">
+                  <div className="skeleton-card" style={{minWidth: '250px'}}><div className="skeleton-line"></div><div className="skeleton-line medium"></div></div>
+                  <div className="skeleton-card" style={{minWidth: '250px'}}><div className="skeleton-line"></div><div className="skeleton-line short"></div></div>
+                  <div className="skeleton-card" style={{minWidth: '250px'}}><div className="skeleton-line"></div><div className="skeleton-line"></div></div>
+               </div>
+            ) : visibleSubmissions.length === 0 ? (
               <div className="empty-state glass-panel">
                  <p style={{ color: 'var(--text-secondary)' }}>No submissions yet.</p>
               </div>
             ) : (
               <div className="horizontal-submissions-scroll">
-                {submissions.map(sub => (
+                {visibleSubmissions.map(sub => (
                   <div key={sub.id} className="mini-sub-card glass-panel">
                     <div className="mini-sub-header">
                       <strong>{sub.uniqueCode}</strong>
@@ -175,7 +221,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
                         : 'Just now'}
                     </div>
                     <div style={{ display: 'flex', gap: '0.4rem', marginTop: 'auto' }}>
-                      <button className="secondary-btn" onClick={() => generatePDFReport(sub)} style={{ flex: 1, padding: '0.4rem', fontSize: '0.75rem' }}>
+                      <button className="secondary-btn" onClick={() => handleDownloadPDF(sub)} style={{ flex: 1, padding: '0.4rem', fontSize: '0.75rem' }}>
                         PDF
                       </button>
                       <button className="secondary-btn" onClick={() => handleDeleteSubmission(sub)} style={{ padding: '0.4rem', fontSize: '0.75rem', color: 'var(--neon-red)' }}>
@@ -192,13 +238,13 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
       case 'templates':
         return (
           <div className="templates-tab animate-fade-in">
-            {rawCloudData.length === 0 ? (
+            {visibleChecklists.length === 0 ? (
               <div className="empty-state glass-panel">
                  <p style={{ color: 'var(--text-secondary)' }}>No checklists exist yet.</p>
               </div>
             ) : (
               <div className="admin-templates-grid">
-                {rawCloudData.map((checklist, idx) => {
+                {visibleChecklists.map((checklist, idx) => {
                   const accents = ['var(--accent)', 'var(--neon-cyan)', 'var(--neon-green)', 'var(--neon-pink)', 'var(--neon-amber)'];
                   const accent = accents[idx % accents.length];
                   return (
@@ -237,7 +283,13 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
         return (
           <div className="submissions-tab animate-fade-in">
             <div className="checklist-container">
-              {submissions.length === 0 ? (
+              {submissionsLoading && submissions.length === 0 ? (
+                <>
+                  <div className="skeleton-card"><div className="skeleton-line"></div></div>
+                  <div className="skeleton-card"><div className="skeleton-line short"></div></div>
+                  <div className="skeleton-card"><div className="skeleton-line medium"></div></div>
+                </>
+              ) : visibleSubmissions.length === 0 ? (
                 <div className="empty-state glass-panel">
                   <div className="empty-state-icon">📭</div>
                   <h3>No Submissions Yet</h3>
@@ -245,13 +297,30 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
                 </div>
               ) : (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                    <input 
+                      type="text" 
+                      placeholder="Search submissions by code, title, or name..." 
+                      className="text-input" 
+                      style={{ flex: 1, minWidth: '250px' }}
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
                     <button className="secondary-btn" onClick={handleExportCSV}>
                       📥 Export CSV
                     </button>
                   </div>
-                  {submissions.map(sub => <SubmissionCard key={sub.id} sub={sub} onDelete={handleDeleteSubmission} />)}
-                  {submissions.length === limitCount && (
+                  {visibleSubmissions
+                    .filter(sub => {
+                      if (!searchTerm) return true;
+                      const term = searchTerm.toLowerCase();
+                      const matchesCode = sub.uniqueCode?.toLowerCase().includes(term);
+                      const matchesTitle = sub.checklistTitle?.toLowerCase().includes(term);
+                      const matchesName = sub.fillerName?.toLowerCase().includes(term) || sub.signatures?.cmm?.name?.toLowerCase().includes(term);
+                      return matchesCode || matchesTitle || matchesName;
+                    })
+                    .map(sub => <SubmissionCard key={sub.id} sub={sub} onDelete={handleDeleteSubmission} />)}
+                  {visibleSubmissions.length === limitCount && (
                     <div style={{ textAlign: 'center', marginTop: '1rem' }}>
                       <button className="secondary-btn" onClick={() => setLimitCount(prev => prev + 20)}>Load More</button>
                     </div>
@@ -280,7 +349,9 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <h2>Admin Dashboard</h2>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="primary-btn" onClick={() => setShowCreateModal(true)}>+ New Checklist</button>
+            <button className="primary-btn mobile-fab" onClick={() => setShowCreateModal(true)}>
+              <span className="desktop-text">+ New Checklist</span>
+            </button>
             <button
               className="secondary-btn glass-panel"
               onClick={() => setShowSettings(true)}
@@ -312,7 +383,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
             onClick={() => setAdminTab('submissions')}
           >
             Submissions
-            {submissions.length > 0 && <span className="admin-tab-badge">{submissions.length}</span>}
+            {visibleSubmissions.length > 0 && <span className="admin-tab-badge">{visibleSubmissions.length}</span>}
           </button>
         </div>
       </div>

@@ -1,9 +1,14 @@
 import { useState } from 'react';
-import { generatePDFReport } from '../../utils/pdfGenerator';
+
 
 export default function SubmissionCard({ sub, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   const date = sub.submittedAt ? new Date(typeof sub.submittedAt.toDate === 'function' ? sub.submittedAt.toDate() : sub.submittedAt).toLocaleString() : 'Just now';
+
+  const handleDownloadPDF = async () => {
+    const { generatePDFReport } = await import('../../utils/pdfGenerator');
+    generatePDFReport(sub);
+  };
 
   return (
     <div className="submission-card glass-panel">
@@ -20,7 +25,7 @@ export default function SubmissionCard({ sub, onDelete }) {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem', flexShrink: 0 }}>
           <span className="submission-time">{date}</span>
           <div style={{ display: 'flex', gap: '0.4rem' }}>
-            <button className="pdf-btn" onClick={() => generatePDFReport(sub)}>
+            <button className="pdf-btn" onClick={handleDownloadPDF}>
               📄 PDF
             </button>
             <button className="pdf-btn" onClick={() => onDelete(sub)} style={{ color: 'var(--neon-red)', borderColor: 'rgba(255, 60, 60, 0.3)' }}>

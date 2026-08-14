@@ -11,7 +11,13 @@ service cloud.firestore {
     // Anyone can create a filled checklist or review token,
     // but only admins can read or delete them
     match /filled_checklists/{document=**} {
-      allow create: if true && request.resource.data.keys().hasAll(['checklistId', 'fillerName', 'uniqueCode']);
+      allow create: if true 
+                    && request.resource.data.keys().hasAll(['checklistId', 'fillerName', 'uniqueCode'])
+                    && request.resource.data.fillerName is string
+                    && request.resource.data.fillerName.size() > 0 
+                    && request.resource.data.fillerName.size() <= 100
+                    && request.resource.data.uniqueCode is string
+                    && request.resource.data.uniqueCode.size() <= 50;
       allow read, update, delete: if request.auth != null;
     }
     

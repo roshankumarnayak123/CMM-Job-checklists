@@ -207,9 +207,15 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
       toast.error('Please fill in all CMM details (Name, Designation, Date).');
       return;
     }
-    const hasUnansweredRequired = selectedChecklist.checkpoints?.some(cp => cp.required && !checkpointValues[cp.id]);
-    if (hasUnansweredRequired) {
+    const firstUnansweredRequired = selectedChecklist.checkpoints?.find(cp => cp.required && !checkpointValues[cp.id]);
+    if (firstUnansweredRequired) {
       toast.error('Please fill out all required checkpoints.');
+      const el = document.getElementById(`cp-${firstUnansweredRequired.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('error-pulse');
+        setTimeout(() => el.classList.remove('error-pulse'), 4500);
+      }
       return;
     }
 
@@ -251,9 +257,15 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
       toast.error("Please fill in all CMM details.");
       return;
     }
-    const hasUnansweredRequired = selectedChecklist.checkpoints?.some(cp => cp.required && !checkpointValues[cp.id]);
-    if (hasUnansweredRequired) {
+    const firstUnansweredRequired = selectedChecklist.checkpoints?.find(cp => cp.required && !checkpointValues[cp.id]);
+    if (firstUnansweredRequired) {
       toast.error('Please fill out all required checkpoints.');
+      const el = document.getElementById(`cp-${firstUnansweredRequired.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('error-pulse');
+        setTimeout(() => el.classList.remove('error-pulse'), 4500);
+      }
       return;
     }
 
@@ -429,6 +441,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                   return (
                     <div
                       key={cp.id}
+                      id={`cp-${cp.id}`}
                       className="checkpoint-item animate-slide-up glass-panel"
                       style={{ '--delay': `${idx * 0.05}s` }}
                       onClick={() => setCurrentStep(s => Math.max(s, 1))}

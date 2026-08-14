@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+import { flushSync } from 'react-dom';
 import ChecklistView from './ChecklistView';
 const AdminView = lazy(() => import('./AdminView'));
 import FillChecklistView from './FillChecklistView';
@@ -46,6 +47,18 @@ function App() {
   const [loginError, setLoginError] = useState('');
   // Mobile: which tab is active — 'list' | 'content'
   const [mobileTab, setMobileTab] = useState('list');
+
+  const navigateWithTransition = useCallback((callback) => {
+    if (!document.startViewTransition) {
+      callback();
+      return;
+    }
+    document.startViewTransition(() => {
+      flushSync(() => {
+        callback();
+      });
+    });
+  }, []);
 
   useLockBodyScroll(showLoginModal);
 
@@ -119,7 +132,7 @@ function App() {
   // When a checklist is selected on mobile, auto-switch to content tab
   const handleSelectChecklist = (checklist) => {
     setSelectedChecklist(checklist);
-    setMobileTab('content');
+    navigateWithTransition(() => setMobileTab('content'));
   };
 
   // ── Wait for auth to resolve before showing main UI, unless it's a review page ──
@@ -271,7 +284,7 @@ function App() {
           ) : (
             <FillChecklistView 
               selectedChecklist={selectedChecklist} 
-              onBack={() => setMobileTab('list')}
+              onBack={() => navigateWithTransition(() => setMobileTab('list'))}
             />
           )}
         </div>
@@ -282,7 +295,7 @@ function App() {
         <nav className="mobile-bottom-nav glass-panel">
           <button
             className={`mobile-nav-btn ${mobileTab === 'list' ? 'active' : ''}`}
-            onClick={() => setMobileTab('list')}
+            onClick={() => navigateWithTransition(() => setMobileTab('list'))}
           >
             <span className="mobile-nav-icon">📋</span>
             <span className="mobile-nav-label">Checklists</span>
@@ -293,7 +306,7 @@ function App() {
 
           <button
             className={`mobile-nav-btn ${mobileTab === 'content' ? 'active' : ''}`}
-            onClick={() => setMobileTab('content')}
+            onClick={() => navigateWithTransition(() => setMobileTab('content'))}
           >
             <span className="mobile-nav-icon">✍️</span>
             <span className="mobile-nav-label">Fill Form</span>
