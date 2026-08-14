@@ -67,7 +67,7 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-3d6fd1c8'], (function (workbox) { 'use strict';
+define(['./workbox-0791036e'], (function (workbox) { 'use strict';
 
   self.addEventListener('message', event => {
     if (event.data && event.data.type === 'SKIP_WAITING') {
@@ -85,32 +85,12 @@ define(['./workbox-3d6fd1c8'], (function (workbox) { 'use strict';
     "revision": "012c99457d0f2f1b59ecdf7928895e71"
   }, {
     "url": "index.html",
-    "revision": "0.ldkj5kv3j04"
+    "revision": "0.niunjjn362c"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
     allowlist: [/^\/$/]
   }));
-  workbox.registerRoute(/^https:\/\/identitytoolkit\.googleapis\.com\/.*/i, new workbox.NetworkFirst({
-    "cacheName": "firebase-auth-cache",
-    "networkTimeoutSeconds": 10,
-    plugins: [new workbox.ExpirationPlugin({
-      maxEntries: 10,
-      maxAgeSeconds: 86400
-    }), new workbox.CacheableResponsePlugin({
-      statuses: [0, 200]
-    })]
-  }), 'GET');
-  workbox.registerRoute(/^https:\/\/firestore\.googleapis\.com\/.*/i, new workbox.NetworkFirst({
-    "cacheName": "firestore-cache",
-    "networkTimeoutSeconds": 8,
-    plugins: [new workbox.ExpirationPlugin({
-      maxEntries: 50,
-      maxAgeSeconds: 3600
-    }), new workbox.CacheableResponsePlugin({
-      statuses: [0, 200]
-    })]
-  }), 'GET');
   workbox.registerRoute(/^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i, new workbox.StaleWhileRevalidate({
     "cacheName": "google-fonts-cache",
     plugins: [new workbox.ExpirationPlugin({

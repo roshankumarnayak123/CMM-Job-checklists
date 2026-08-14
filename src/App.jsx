@@ -38,6 +38,7 @@ function App() {
   const [checklists, setChecklists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState(false);
+  const [syncErrorMessage, setSyncErrorMessage] = useState('');
   const [theme, setTheme] = useState(() => localStorage.getItem('app-theme') || 'dark');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [username, setUsername] = useState('');
@@ -81,6 +82,7 @@ function App() {
     }, (error) => {
       console.error('Firestore sync error:', error);
       setSyncError(true);
+      setSyncErrorMessage(error?.message || 'Unknown error');
       setLoading(false);
     });
     return () => unsubscribe();
@@ -165,9 +167,11 @@ function App() {
 
         <div className="header-actions">
           <LiveClock />
-          <div className="cloud-sync-status">
+          <div className="cloud-sync-status" title={syncErrorMessage}>
             <div className={`status-dot ${syncError ? '' : 'online'}`} style={syncError ? { backgroundColor: 'var(--neon-red)', boxShadow: '0 0 8px var(--neon-red)' } : {}}></div>
-            <span className="sync-label">{syncError ? 'Offline' : 'Live'}</span>
+            <span className="sync-label" style={{maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+              {syncError ? `Offline (${syncErrorMessage})` : 'Live'}
+            </span>
           </div>
           <button className="theme-toggle-inline" onClick={toggleTheme} title="Toggle Theme">
             {theme === 'dark' ? '☀️' : '🌙'}
