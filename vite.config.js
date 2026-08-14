@@ -85,28 +85,6 @@ export default defineConfig({
         clientsClaim: false,
 
         runtimeCaching: [
-          /* Firebase Auth API — network first, fallback to cache */
-          {
-            urlPattern: /^https:\/\/identitytoolkit\.googleapis\.com\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'firebase-auth-cache',
-              networkTimeoutSeconds: 10,
-              expiration: { maxEntries: 10, maxAgeSeconds: 86400 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          /* Firestore REST API — network first */
-          {
-            urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'firestore-cache',
-              networkTimeoutSeconds: 8,
-              expiration: { maxEntries: 50, maxAgeSeconds: 3600 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
           /* Google Fonts — stale while revalidate */
           {
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
