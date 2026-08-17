@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import './App.css';
 
 export default function PWAUpdatePrompt() {
   const [isUpdating, setIsUpdating] = useState(false);
+  const [swRegistration, setSwRegistration] = useState(null);
   const {
     offlineReady: [offlineReady, setOfflineReady],
     needRefresh: [needRefresh, setNeedRefresh],
@@ -11,11 +12,38 @@ export default function PWAUpdatePrompt() {
   } = useRegisterSW({
     onRegistered(r) {
       console.log('SW Registered:', r);
+      if (r) {
+        setSwRegistration(r);
+      }
     },
     onRegisterError(error) {
       console.log('SW registration error', error);
     },
   });
+
+  useEffect(() => {
+    if (!swRegistration) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('App opened/visible. Checking for updates...');
+        swRegistration.update();
+      }
+    };
+
+    // Check for updates when the app becomes visible
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Also check for updates periodically (every 1 hour)
+    const intervalId = setInterval(() => {
+      swRegistration.update();
+    }, 60 * 60 * 1000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(intervalId);
+    };
+  }, [swRegistration]);
 
   const close = () => {
     setOfflineReady(false);
