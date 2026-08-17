@@ -58,24 +58,14 @@ export default function ReviewPage({ tokenId }) {
         completedAt: firebaseService.getServerTimestamp(),
       });
       
-      const payloadBase = {
-        checklistId: tokenData.checklistId,
-        checklistTitle: tokenData.checklistTitle,
-        fillerName: tokenData.fillerName,
-        notes: tokenData.notes,
-        uniqueCode: tokenData.uniqueCode,
-        checkpointResponses: tokenData.checkpointResponses,
-      };
-      
-      await firebaseService.submitChecklist({
-        ...payloadBase,
-        submittedAt: new Date().toISOString(),
-        signatures: {
-          cmm: tokenData.cmmSignature,
-          amm: ammData
-        },
-        reviewMode: 'link'
-      });
+      // We update the existing submission instead of creating a new duplicate one
+      if (tokenData.submissionId) {
+        await firebaseService.updateSubmission(tokenData.submissionId, {
+          'signatures.amm': ammData,
+          ammSignedAt: new Date().toISOString(),
+          status: 'completed'
+        });
+      }
       
       setStatus('success');
     } catch (err) {
@@ -178,6 +168,20 @@ export default function ReviewPage({ tokenId }) {
           <div style={{ marginTop: '1.5rem', padding: '0.75rem 1.5rem', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: '12px', fontSize: '0.85rem', color: 'var(--neon-green)', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
             ✓ {tokenData?.checklistTitle}
           </div>
+          <button 
+            className="primary-btn" 
+            style={{ marginTop: '2rem', width: '100%', maxWidth: '200px' }}
+            onClick={() => {
+              window.close();
+              // Fallback: if window.close() was blocked (tab not opened by script),
+              // redirect to the app's home page after a short delay.
+              setTimeout(() => {
+                window.location.href = window.location.origin + import.meta.env.BASE_URL;
+              }, 300);
+            }}
+          >
+            Thank you 👋
+          </button>
         </div>
       </div>
     );
@@ -232,12 +236,6 @@ export default function ReviewPage({ tokenId }) {
                   <div className="review-cp-value">
                     {cp.value || <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>No response</span>}
                   </div>
-                  {cp.photoDataUrl && (
-                    <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '0.25rem' }}>Attached Photo:</span>
-                      <img src={cp.photoDataUrl} alt="Checkpoint attachment" style={{ height: '60px', borderRadius: '4px', objectFit: 'cover' }} />
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -252,6 +250,19 @@ export default function ReviewPage({ tokenId }) {
               Additional Notes
             </div>
             <div className="review-notes-box">{tokenData.notes}</div>
+          </div>
+        )}
+
+        {/* General Photo */}
+        {tokenData.generalPhotoUrl && (
+          <div className="review-section glass-panel">
+            <div className="review-section-title">
+              <span className="section-number">3</span>
+              Attached Photo
+            </div>
+            <div style={{ marginTop: '1rem' }}>
+              <img src={tokenData.generalPhotoUrl} alt="Attached to checklist" style={{ maxWidth: '100%', maxHeight: '400px', borderRadius: '8px', objectFit: 'contain', border: '1px solid var(--border-color)' }} />
+            </div>
           </div>
         )}
 

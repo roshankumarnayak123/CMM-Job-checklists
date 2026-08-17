@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
 import { toast } from 'react-hot-toast';
 import CheckpointsEditor from './CheckpointsEditor';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
+import { firebaseService } from '../../services/firebaseService';
 
 export default function EditChecklistModal({ showEditModal, setShowEditModal, selectedChecklist, onDelete }) {
   useLockBodyScroll(showEditModal);
@@ -35,12 +34,14 @@ export default function EditChecklistModal({ showEditModal, setShowEditModal, se
       };
       const updatedHistory = [...(selectedChecklist.history || []), historyEntry];
 
-      await updateDoc(doc(db, 'checklists', selectedChecklist.id), { 
+      await firebaseService.updateChecklist(selectedChecklist.id, { 
         title: title.trim(), 
         description: description.trim(), 
         checkpoints,
         history: updatedHistory
       });
+      await firebaseService.logEvent('Template Modified', `Updated checklist template: "${title.trim()}"`);
+      toast.success('Checklist updated successfully!');
       setShowEditModal(false);
     } catch (err) {
       console.error(err);
@@ -69,7 +70,7 @@ export default function EditChecklistModal({ showEditModal, setShowEditModal, se
 
   return createPortal(
     <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '100%' }}>
+      <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: '800px', width: '100%' }}>
         <div className="modal-header">
           <h3>✏️ Edit Checklist</h3>
           <button type="button" className="close-btn" aria-label="Close modal" onClick={handleClose}>✕</button>

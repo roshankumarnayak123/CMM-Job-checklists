@@ -12,7 +12,6 @@ export function generatePDFReport(sub) {
           <td class="cp-label">${escape(cp.label)}</td>
           <td class="cp-value">
             ${escape(cp.value) || '<span style="color:#94a3b8">—</span>'}
-            ${cp.photoDataUrl ? `<div style="margin-top: 8px;"><img src="${cp.photoDataUrl}" style="max-height: 80px; border-radius: 4px; object-fit: cover;" alt="Checkpoint Photo"></div>` : ''}
           </td>
         </tr>`).join('')
     : `<tr><td colspan="3" style="text-align:center;padding:1.5rem;color:#94a3b8;font-style:italic">No checkpoints recorded</td></tr>`;
@@ -154,6 +153,14 @@ export function generatePDFReport(sub) {
     <div class="section">
       <div class="section-title">📝 Notes &amp; Report</div>
       <div class="notes-box">${escape(sub.notes)}</div>
+    </div>` : ''}
+
+    ${sub.generalPhotoUrl ? `
+    <div class="section">
+      <div class="section-title">📷 Attached Photo</div>
+      <div>
+        <img src="${sub.generalPhotoUrl}" style="max-width: 100%; max-height: 300px; border-radius: 8px; border: 1px solid #e2e8f0; object-fit: contain;" alt="Attached Photo">
+      </div>
     </div>` : ''}
 
     <div class="section">

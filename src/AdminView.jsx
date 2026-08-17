@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import './App.css';
 import { firebaseService } from './services/firebaseService';
 import { toast } from 'react-hot-toast';
 import Papa from 'papaparse';
@@ -10,6 +9,7 @@ import SettingsModal from './components/admin/SettingsModal';
 import CreateChecklistModal from './components/admin/CreateChecklistModal';
 import EditChecklistModal from './components/admin/EditChecklistModal';
 import SubmissionCard from './components/admin/SubmissionCard';
+import ShareLinkModal from './ShareLinkModal';
 
 export default function AdminView({ selectedChecklist, setSelectedChecklist, rawCloudData }) {
   const [showSettings, setShowSettings]       = useState(false);
@@ -25,6 +25,10 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
   
   const [hiddenSubmissionIds, setHiddenSubmissionIds] = useState([]);
   const [hiddenChecklistIds, setHiddenChecklistIds] = useState([]);
+  
+  const [shareTokenId, setShareTokenId] = useState(null);
+  const [shareSub, setShareSub] = useState(null);
+  const [shareTokenExpiresAt, setShareTokenExpiresAt] = useState(null);
   
   const { data: submissions, loading: submissionsLoading } = useSubmissions(limitCount);
   const { data: pendingTokens } = usePendingTokens();
@@ -70,6 +74,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
       if (!isUndone) {
         try {
           await firebaseService.deleteChecklist(checklistToHide.id);
+          await firebaseService.logEvent('Template Deleted', `Deleted checklist template: "${checklistToHide.title || checklistToHide.id}"`);
         } catch (err) {
           console.error(err);
           toast.error('Failed to delete checklist.');
@@ -162,6 +167,36 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
     URL.revokeObjectURL(url);
   };
 
+  const handleGenerateShareLink = async (sub) => {
+    try {
+      const toastId = toast.loading('Generating link...');
+      const expiresAt = new Date(Date.now() + 3600000); // 1 hour
+      const tokenData = {
+        submissionId: sub.id,
+        checklistId: sub.checklistId || '',
+        checklistTitle: sub.checklistTitle || '',
+        fillerName: sub.fillerName || '',
+        notes: sub.notes || '',
+        uniqueCode: sub.uniqueCode || '',
+        checkpointResponses: sub.checkpointResponses || [],
+        generalPhotoUrl: sub.generalPhotoUrl || null,
+        cmmSignature: sub.signatures?.cmm || null,
+        status: 'pending',
+        expiresAt: expiresAt,
+        createdAt: firebaseService.getServerTimestamp()
+      };
+      
+      const tokenDoc = await firebaseService.createReviewToken(tokenData);
+      toast.dismiss(toastId);
+      setShareTokenId(tokenDoc.id);
+      setShareSub(sub);
+      setShareTokenExpiresAt(expiresAt.getTime());
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate link');
+    }
+  };
+
   const handleDownloadPDF = async (sub) => {
     const { generatePDFReport } = await import('./utils/pdfGenerator');
     generatePDFReport(sub);
@@ -197,17 +232,17 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
               </button>
             </div>
             {submissionsLoading && submissions.length === 0 ? (
-               <div className="horizontal-submissions-scroll">
-                  <div className="skeleton-card" style={{minWidth: '250px'}}><div className="skeleton-line"></div><div className="skeleton-line medium"></div></div>
-                  <div className="skeleton-card" style={{minWidth: '250px'}}><div className="skeleton-line"></div><div className="skeleton-line short"></div></div>
-                  <div className="skeleton-card" style={{minWidth: '250px'}}><div className="skeleton-line"></div><div className="skeleton-line"></div></div>
+               <div className="admin-templates-grid">
+                  <div className="skeleton-card"><div className="skeleton-line"></div><div className="skeleton-line medium"></div></div>
+                  <div className="skeleton-card"><div className="skeleton-line"></div><div className="skeleton-line short"></div></div>
+                  <div className="skeleton-card"><div className="skeleton-line"></div><div className="skeleton-line"></div></div>
                </div>
             ) : visibleSubmissions.length === 0 ? (
               <div className="empty-state glass-panel">
                  <p style={{ color: 'var(--text-secondary)' }}>No submissions yet.</p>
               </div>
             ) : (
-              <div className="horizontal-submissions-scroll">
+              <div className="admin-templates-grid">
                 {visibleSubmissions.map(sub => (
                   <div key={sub.id} className="mini-sub-card glass-panel">
                     <div className="mini-sub-header">
@@ -319,7 +354,23 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
                       const matchesName = sub.fillerName?.toLowerCase().includes(term) || sub.signatures?.cmm?.name?.toLowerCase().includes(term);
                       return matchesCode || matchesTitle || matchesName;
                     })
-                    .map(sub => <SubmissionCard key={sub.id} sub={sub} onDelete={handleDeleteSubmission} />)}
+                    .map(sub => {
+                      const activeToken = pendingTokens.find(t => t.submissionId === sub.id && t.status === 'pending' && new Date(t.expiresAt?.toDate?.() || t.expiresAt) > new Date());
+                      return (
+                        <SubmissionCard 
+                          key={sub.id} 
+                          sub={sub} 
+                          activeToken={activeToken} 
+                          onDelete={handleDeleteSubmission} 
+                          onShareLink={handleGenerateShareLink} 
+                          onShowLink={(sub, token) => {
+                            setShareTokenId(token.id);
+                            setShareSub(sub);
+                            setShareTokenExpiresAt(new Date(token.expiresAt?.toDate?.() || token.expiresAt).getTime());
+                          }}
+                        />
+                      );
+                    })}
                   {visibleSubmissions.length === limitCount && (
                     <div style={{ textAlign: 'center', marginTop: '1rem' }}>
                       <button className="secondary-btn" onClick={() => setLimitCount(prev => prev + 20)}>Load More</button>
@@ -343,6 +394,20 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
       <SettingsModal showSettings={showSettings} setShowSettings={setShowSettings} rawCloudData={rawCloudData} />
       <CreateChecklistModal showCreateModal={showCreateModal} setShowCreateModal={setShowCreateModal} />
       <EditChecklistModal showEditModal={showEditModal} setShowEditModal={setShowEditModal} selectedChecklist={selectedChecklist} onDelete={handleDeleteChecklist} />
+      
+      {shareTokenId && shareSub && (
+        <ShareLinkModal 
+          tokenId={shareTokenId}
+          expiresAtMs={shareTokenExpiresAt}
+          checklistTitle={shareSub.checklistTitle}
+          fillerName={shareSub.fillerName}
+          onClose={() => {
+            setShareTokenId(null);
+            setShareSub(null);
+            setShareTokenExpiresAt(null);
+          }}
+        />
+      )}
 
       {/* Admin Header with Top Nav */}
       <div className="dashboard-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '1.5rem', marginBottom: '2rem' }}>

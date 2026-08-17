@@ -1,9 +1,10 @@
 import { db, auth, storage } from '../firebase';
 import { collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
 import { signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut } from 'firebase/auth';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, uploadString, getDownloadURL } from 'firebase/storage';
 
 export const firebaseService = {
+  getServerTimestamp: () => serverTimestamp(),
   // Checklists
   subscribeToChecklists: (callback, onError) => {
     return onSnapshot(collection(db, 'checklists'), snapshot => {
@@ -22,6 +23,8 @@ export const firebaseService = {
     }, onError);
   },
   submitChecklist: async (data) => await addDoc(collection(db, 'filled_checklists'), data),
+  getSubmission: async (id) => await getDoc(doc(db, 'filled_checklists', id)),
+  updateSubmission: async (id, data) => await updateDoc(doc(db, 'filled_checklists', id), data),
   deleteSubmission: async (id) => await deleteDoc(doc(db, 'filled_checklists', id)),
   
   // Review Tokens
@@ -42,11 +45,36 @@ export const firebaseService = {
   resetPassword: async (email) => await sendPasswordResetEmail(auth, email),
   updateUserPassword: async (user, newPassword) => await updatePassword(user, newPassword),
   
-  // Utils
-  getServerTimestamp: () => serverTimestamp(),
+  // Audit Logs
+  logEvent: async (action, details, user = null) => {
+    try {
+      await addDoc(collection(db, 'audit_logs'), {
+        action,
+        details,
+        user: user || (auth.currentUser ? auth.currentUser.email : 'Anonymous Technician'),
+        timestamp: serverTimestamp()
+      });
+    } catch (e) {
+      console.error("Failed to log event:", e);
+    }
+  },
+  subscribeToAuditLogs: (callback, onError) => {
+    const q = query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(100));
+    return onSnapshot(q, snapshot => {
+      callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, onError);
+  },
+
+  // Utils — image upload helpers
   uploadImage: async (blob, path) => {
+
     const storageRef = ref(storage, path);
-    await uploadBytes(storageRef, blob);
+    await uploadBytes(storageRef, blob, { contentType: blob.type || 'image/jpeg' });
+    return await getDownloadURL(storageRef);
+  },
+  uploadImageBase64: async (dataUrl, path) => {
+    const storageRef = ref(storage, path);
+    await uploadString(storageRef, dataUrl, 'data_url');
     return await getDownloadURL(storageRef);
   },
 };

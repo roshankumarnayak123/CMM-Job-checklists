@@ -8,6 +8,12 @@
   padding-top: 56px; /* Offset for .top-header */
 }
 
+/* Base utility: mobile-only elements hidden on desktop */
+.mobile-bottom-nav { display: none; }
+/* Base: pane wrappers always shown on desktop */
+.left-pane-wrapper, .right-pane-wrapper { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+.mobile-active, .mobile-hidden { /* no-op on desktop — overridden in media query */ }
+
 .left-pane, .right-pane {
   flex: 1;
   padding: 1.5rem;
@@ -36,7 +42,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 56px;
+  height: calc(56px + env(safe-area-inset-top));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2170,7 +2176,7 @@
 /* ═══════════════════════════════════════════════════════════
    REVIEW PAGE (AMM View)
 ═══════════════════════════════════════════════════════════ */
-.review-page-shell { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg-primary); }
+.review-page-shell { flex: 1; width: 100%; height: 100vh; display: flex; flex-direction: column; background: var(--bg-primary); overflow-y: auto; }
 
 .review-header {
   position: sticky; top: 0; z-index: 100;
@@ -2198,7 +2204,6 @@
 .review-center-card {
   max-width: 440px; width: 90vw; margin: auto; padding: 2.5rem 2rem;
   display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.5rem;
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
 }
 
 .review-spinner-big { font-size: 2.5rem; animation: spin 1.5s linear infinite; }
@@ -2368,5 +2373,113 @@
 .admin-tab:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }  
 .admin-tab.active { color: var(--accent); background: rgba(139,92,246,0.1); }  
 .admin-tab-badge { background: var(--accent); color: white; font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 20px; }  
+.mobile-only { display: none !important; }
+
 /* ADMIN TEMPLATES GRID */  
-.admin-templates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; align-items: start; } 
+.admin-templates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; align-items: start; }
+
+/* Conflict fix: only apply 600px-only share rule within that range specifically */
+@media (max-width: 600px) {
+  .share-buttons-row  { flex-direction: column; }
+  .review-center-card { width: 92vw; padding: 2rem 1.25rem; }
+  .review-sig-info    { grid-template-columns: 1fr; }
+} 
+
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE OPTIMIZATION (Responsive Design)
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Layout adjustments */
+  .app-container {
+    flex-direction: column;
+    padding-top: 60px; /* Account for top header */
+    padding-bottom: 65px; /* Account for bottom nav */
+    height: 100vh;
+  }
+  
+  .left-pane, .right-pane, .left-pane-wrapper, .right-pane-wrapper {
+    width: 100%;
+    padding: 1rem;
+    flex: none;
+    height: 100%;
+  }
+
+  .desktop-only { display: none !important; }
+  .mobile-only { display: flex !important; }
+
+  .mobile-active { display: flex !important; }
+  .mobile-hidden { display: none !important; }
+
+  /* Mobile bottom navigation */
+  .mobile-bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 65px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background: rgba(5, 11, 24, 0.95);
+    border-top: 1px solid var(--border);
+    z-index: 400;
+  }
+
+  .mobile-nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    height: 100%;
+    position: relative;
+    transition: var(--transition-fast);
+  }
+
+  .mobile-nav-btn.active {
+    color: var(--neon-cyan);
+  }
+  
+  .mobile-nav-btn.active::after {
+    content: ''; position: absolute; top: 0; left: 20%; right: 20%; height: 3px;
+    background: var(--neon-cyan); border-radius: 0 0 4px 4px;
+  }
+
+  .mobile-nav-icon { font-size: 1.3rem; }
+  .mobile-nav-label { font-size: 0.7rem; font-family: var(--font-display); font-weight: 600; }
+  
+  .mobile-nav-badge {
+    position: absolute; top: 6px; right: 25%;
+    background: var(--neon-red); color: white;
+    font-size: 0.6rem; padding: 2px 5px; border-radius: 10px; font-weight: bold;
+  }
+
+  /* Headers */
+  .top-header { padding: env(safe-area-inset-top) 1rem 0 1rem; }
+  .app-logo-text { font-size: 0.95rem; }
+  .header-actions { gap: 0.3rem; }
+  .admin-login-btn { padding: 0.4rem 0.6rem; }
+  .admin-btn-text { display: none; } /* Hide "Admin" text on small screens */
+
+  /* Admin Dashboard adjustments */
+  .dashboard-header > div { flex-direction: column; align-items: stretch !important; }
+  .dashboard-header h2 { font-size: 1.4rem; text-align: center; }
+  .mobile-fab { width: 100%; justify-content: center; }
+  
+  /* Make cards stretch full width on mobile */
+  .admin-templates-grid { grid-template-columns: 1fr; }
+  
+  .submission-header { flex-direction: column; align-items: stretch; gap: 0.8rem; }
+  .submission-header > div:last-child { align-items: flex-start !important; }
+  
+  /* Modals */
+  .modal-content { width: 95%; max-height: 90vh; }
+  .modal-body { padding: 1rem; }
+  .form-grid { grid-template-columns: 1fr !important; }
+  
+  /* Other UI tweaks */
+  .theme-toggle { bottom: 80px; right: 1rem; width: 40px; height: 40px; }
+} 

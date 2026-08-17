@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useLockBodyScroll } from './hooks/useLockBodyScroll';
 
 const BASE_URL = `${window.location.origin}${import.meta.env.BASE_URL}`;
@@ -10,7 +11,11 @@ export default function ShareLinkModal({ tokenId, expiresAtMs, checklistTitle, f
   // Bug #3 fix: compute remaining seconds from actual expiry time, not a hardcoded 3600
   const [secondsLeft, setSecondsLeft] = useState(() => Math.max(0, Math.round((expiresAtMs - Date.now()) / 1000)));
 
-  // Countdown timer
+  // Countdown timer — reset whenever expiresAtMs changes (e.g., re-share)
+  useEffect(() => {
+    setSecondsLeft(Math.max(0, Math.round((expiresAtMs - Date.now()) / 1000)));
+  }, [expiresAtMs]);
+
   useEffect(() => {
     if (secondsLeft <= 0) return;
     const id = setInterval(() => setSecondsLeft(s => {
@@ -18,7 +23,7 @@ export default function ShareLinkModal({ tokenId, expiresAtMs, checklistTitle, f
       return s - 1;
     }), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [secondsLeft <= 0 ? 0 : expiresAtMs]);
 
   const formatCountdown = (s) => {
     const m = Math.floor(s / 60);
@@ -55,7 +60,7 @@ export default function ShareLinkModal({ tokenId, expiresAtMs, checklistTitle, f
     `Hello,\n\nPlease review and digitally sign the following CMM checklist:\n\nChecklist: ${checklistTitle}\nFilled by: ${fillerName}\n\nReview Link (valid for 1 hour):\n${reviewUrl}\n\nPlease open the link, review the checklist entries, draw your signature, and click "Approve & Sign".\n\nNote: This link will expire in 1 hour.\n\nThank you,\nCentral Mechanical Maintenance`
   );
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-content glass-panel share-modal"
@@ -150,6 +155,7 @@ export default function ShareLinkModal({ tokenId, expiresAtMs, checklistTitle, f
           <button className="secondary-btn" onClick={onClose}>Close</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { firebaseService } from './services/firebaseService';
-import ShareLinkModal from './ShareLinkModal';
 import { toast } from 'react-hot-toast';
-
-const REVIEW_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+import ShareLinkModal from './ShareLinkModal';
 
 const compressImage = (file) => {
   return new Promise((resolve, reject) => {
@@ -14,7 +12,7 @@ const compressImage = (file) => {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800;
+        const MAX_WIDTH = 600;
         let width = img.width;
         let height = img.height;
 
@@ -28,14 +26,8 @@ const compressImage = (file) => {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
         
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            reject(new Error('Canvas to Blob failed'));
-            return;
-          }
-          const previewUrl = URL.createObjectURL(blob);
-          resolve({ blob, previewUrl });
-        }, 'image/jpeg', 0.6);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+        resolve({ blob: null, previewUrl: dataUrl, dataUrl });
       };
       img.onerror = (err) => reject(err);
     };
@@ -75,21 +67,18 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
   const [notes, setNotes]                   = useState('');
   const [isSubmitting, setIsSubmitting]     = useState(false);
   const [submittedCode, setSubmittedCode]   = useState(null);
+  const [reviewTokenId, setReviewTokenId] = useState(null);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [checkpointValues, setCheckpointValues] = useState({});
-  const [checkpointPhotos, setCheckpointPhotos] = useState({});
-  const [compressingImageId, setCompressingImageId] = useState(null);
+  const [generalPhoto, setGeneralPhoto] = useState(null);
+  const [isCompressingImage, setIsCompressingImage] = useState(false);
   const [cmmData, setCmmData] = useState({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
   const [currentStep, setCurrentStep]       = useState(0);
   const totalSteps = 3;
 
-  // Share link modal state
-  const [shareTokenId, setShareTokenId]     = useState(null);
-  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
-
   useEffect(() => {
     setSubmittedCode(null);
-    setShareTokenId(null);
-    setCheckpointPhotos({});
+    setGeneralPhoto(null);
     
     const initialValues = {};
     if (selectedChecklist?.checkpoints) {
@@ -133,18 +122,19 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
   // Cleanup object URLs on unmount
   useEffect(() => {
     return () => {
-      Object.values(checkpointPhotos).forEach(photoData => {
-        if (photoData && photoData.previewUrl) {
-          URL.revokeObjectURL(photoData.previewUrl);
-        }
-      });
+      if (generalPhoto && generalPhoto.previewUrl) {
+        URL.revokeObjectURL(generalPhoto.previewUrl);
+      }
     };
-  }, [checkpointPhotos]);
+  }, [generalPhoto]);
 
   const generateCode = () => {
-    // Generate a short 10-character alphanumeric code for easy sharing
-    const parts = crypto.randomUUID().split('-');
-    return parts[0].toUpperCase() + parts[1].toUpperCase();
+    try {
+      const parts = crypto.randomUUID().split('-');
+      return parts[0].toUpperCase() + parts[1].toUpperCase();
+    } catch (e) {
+      return Math.random().toString(36).substring(2, 10).toUpperCase();
+    }
   };
 
   const handleCheckpointChange = (id, value) =>
@@ -160,8 +150,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
       }
       return {
         label: cp.label,
-        value: val,
-        photoDataUrl: uploadedImageUrls[cp.id] || null
+        value: val
       };
     });
 
@@ -176,75 +165,24 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
       notes:               notes.trim(),
       uniqueCode:          code,
       checkpointResponses: formattedCheckpoints,
+      generalPhotoUrl: uploadedImageUrls.general || null,
       cmmSignature,
     };
   };
 
-  /* ── Generate Review Link (saves draft, opens share modal) ── */
   const uploadPhotos = async () => {
+    // Instead of relying on Firebase Storage which is hanging, we will just 
+    // save the compressed Base64 string directly into Firestore.
+    // It's small enough (~50KB) to easily fit inside the 1MB Firestore document limit.
     const uploadedImageUrls = {};
-    const uploadPromises = Object.entries(checkpointPhotos).map(async ([cpId, photoData]) => {
-      if (photoData && photoData.blob) {
-        const path = `checkpoint_images/${crypto.randomUUID()}`;
-        const url = await firebaseService.uploadImage(photoData.blob, path);
-        uploadedImageUrls[cpId] = url;
-      }
-    });
-    await Promise.all(uploadPromises);
+    if (generalPhoto && generalPhoto.dataUrl) {
+      uploadedImageUrls.general = generalPhoto.dataUrl;
+    }
     return uploadedImageUrls;
   };
 
-  const handleGenerateLink = async (e) => {
-    e.preventDefault();
-    if (!selectedChecklist) return;
-
-    // Bug #1 fix: validate before touching Firestore
-    if (!fillerName.trim()) {
-      toast.error('Please enter your name (Filled By).');
-      return;
-    }
-    if (!cmmData.name.trim() || !cmmData.designation.trim() || !cmmData.date) {
-      toast.error('Please fill in all CMM details (Name, Designation, Date).');
-      return;
-    }
-    const firstUnansweredRequired = selectedChecklist.checkpoints?.find(cp => cp.required && !checkpointValues[cp.id]);
-    if (firstUnansweredRequired) {
-      toast.error('Please fill out all required checkpoints.');
-      const el = document.getElementById(`cp-${firstUnansweredRequired.id}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('error-pulse');
-        setTimeout(() => el.classList.remove('error-pulse'), 4500);
-      }
-      return;
-    }
-
-    setIsGeneratingLink(true);
-    const code = generateCode();
-
-    try {
-      const uploadedImageUrls = await uploadPhotos();
-      const payload = {
-        ...buildPayload(code, uploadedImageUrls),
-        status: 'pending_review',
-        createdAt: firebaseService.getServerTimestamp(),
-        expiresAt: new Date(Date.now() + REVIEW_EXPIRY_MS),
-        expiresAtMs: Date.now() + REVIEW_EXPIRY_MS,
-        ammSignature: null,
-      };
-      
-      const docRef = await withTimeout(firebaseService.createReviewToken(payload), 15000, 'Database write timed out.');
-      setShareTokenId({ id: docRef.id, expiresAtMs: payload.expiresAtMs });
-    } catch (err) {
-      console.error('Error generating review link:', err);
-      toast.error(err.message || 'Failed to generate link. Check your internet connection and Firestore rules.');
-    } finally {
-      setIsGeneratingLink(false);
-    }
-  };
-
-  /* ── Direct Submit (no review link, both signatures in-person) ── */
-  const handleDirectSubmit = async (e) => {
+  /* ── Submit Form ── */
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedChecklist) return;
     
@@ -270,12 +208,17 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     }
 
     setIsSubmitting(true);
-    const code = generateCode();
 
     try {
-      const uploadedImageUrls = await uploadPhotos();
+      const code = generateCode();
+      const uploadedImageUrls = await withTimeout(
+        uploadPhotos(),
+        15000,
+        "Image upload took too long. Please try again."
+      );
       const payloadBase = buildPayload(code, uploadedImageUrls);
-      await withTimeout(firebaseService.submitChecklist({
+      
+      const submitPromise = await firebaseService.submitChecklist({
         ...payloadBase,
         submittedAt: firebaseService.getServerTimestamp(),
         signatures: {
@@ -283,12 +226,34 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
           amm: null
         },
         reviewMode: 'direct'
-      }), 15000, "Database write timed out.");
+      });
+
+      // Generate Review Token for AMM
+      const tokenData = {
+        submissionId: submitPromise.id,
+        checklistId: selectedChecklist.id,
+        checklistTitle: selectedChecklist.title,
+        fillerName: fillerName.trim() || 'Anonymous',
+        notes: notes.trim(),
+        uniqueCode: code,
+        checkpointResponses: payloadBase.checkpointResponses,
+        generalPhotoUrl: uploadedImageUrls.general || null,
+        cmmSignature: payloadBase.cmmSignature,
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 3600000), // 1 hour
+        createdAt: firebaseService.getServerTimestamp()
+      };
+      
+      const tokenDoc = await firebaseService.createReviewToken(tokenData);
+      setReviewTokenId(tokenDoc.id);
+
+      await firebaseService.logEvent('Checklist Submitted', `Submitted checklist: "${selectedChecklist.title}"`, fillerName.trim() || 'Anonymous');
+      toast.success("Checklist Submitted!");
       setSubmittedCode(code);
       localStorage.removeItem(`draft_${selectedChecklist.id}`); // clear draft on success
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to submit. Make sure Firestore rules allow writes to 'filled_checklists'.");
+      console.error("Submit Error:", err);
+      toast.error(err.message || "Failed to submit. Make sure Firestore rules allow writes.");
     } finally {
       setIsSubmitting(false);
     }
@@ -298,11 +263,12 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     setFillerName('');
     setNotes('');
     setSubmittedCode(null);
+    setReviewTokenId(null);
+    setShowShareModal(false);
     setCheckpointValues({});
-    setCheckpointPhotos({});
+    setGeneralPhoto(null);
     setCmmData({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
     setCurrentStep(0);
-    setShareTokenId(null);
   };
 
   /* ── Empty state ── */
@@ -359,13 +325,34 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
             Present this code to your supervisor for verification.
           </p>
 
-          <button
-            onClick={handleReset}
-            className="primary-btn"
-            style={{ marginTop: '2rem', minWidth: '200px' }}
-          >
-            ✍️ Fill Another Checklist
-          </button>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+            {reviewTokenId && (
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="primary-btn"
+                style={{ minWidth: '200px', backgroundColor: '#25D366', borderColor: '#25D366' }}
+              >
+                💬 Share with AMM
+              </button>
+            )}
+            <button
+              onClick={handleReset}
+              className="secondary-btn"
+              style={{ minWidth: '200px' }}
+            >
+              ✍️ Fill Another Checklist
+            </button>
+          </div>
+          
+          {showShareModal && reviewTokenId && (
+            <ShareLinkModal 
+              tokenId={reviewTokenId}
+              expiresAtMs={Date.now() + 3600000}
+              checklistTitle={selectedChecklist.title}
+              fillerName={fillerName}
+              onClose={() => setShowShareModal(false)}
+            />
+          )}
         </div>
       </div>
     );
@@ -406,7 +393,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
 
         <div className="section-divider"></div>
 
-        <form onSubmit={handleGenerateLink} className="checklist-form">
+        <form onSubmit={handleSubmit} className="checklist-form">
 
           {/* ── Section 1: Basic Info ── */}
           <div className="form-section" id="section-info">
@@ -497,64 +484,6 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                         </label>
                       )}
 
-                      <div className="checkpoint-photo-section" style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
-                        {checkpointPhotos[cp.id] ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <img src={checkpointPhotos[cp.id].previewUrl} alt="Attached" style={{ height: '60px', borderRadius: '4px', objectFit: 'cover' }} />
-                            <button 
-                              type="button" 
-                              className="secondary-btn" 
-                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setCheckpointPhotos(prev => {
-                                  if (prev[cp.id] && prev[cp.id].previewUrl) {
-                                    URL.revokeObjectURL(prev[cp.id].previewUrl);
-                                  }
-                                  return { ...prev, [cp.id]: null };
-                                });
-                              }}
-                            >
-                              Remove Photo
-                            </button>
-                          </div>
-                        ) : (
-                          <div>
-                            <label className="secondary-btn" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }} onClick={e => e.stopPropagation()}>
-                              {compressingImageId === cp.id ? (
-                                <span><span className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px', display: 'inline-block', marginRight: '4px' }}></span> Compressing…</span>
-                              ) : (
-                                <span>📷 Attach Photo</span>
-                              )}
-                              <input 
-                                type="file" 
-                                accept="image/*" 
-                                style={{ display: 'none' }}
-                                onChange={async (e) => {
-                                  e.stopPropagation();
-                                  const file = e.target.files[0];
-                                  if (!file) return;
-                                  try {
-                                    setCompressingImageId(cp.id);
-                                    const compressed = await compressImage(file);
-                                    setCheckpointPhotos(prev => {
-                                      if (prev[cp.id] && prev[cp.id].previewUrl) {
-                                        URL.revokeObjectURL(prev[cp.id].previewUrl);
-                                      }
-                                      return { ...prev, [cp.id]: compressed };
-                                    });
-                                  } catch (err) {
-                                    console.error('Error compressing image:', err);
-                                    toast.error('Failed to process image.');
-                                  } finally {
-                                    setCompressingImageId(null);
-                                  }
-                                }}
-                              />
-                            </label>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   );
                 })}
@@ -574,6 +503,59 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                 rows={4}
                 className="styled-textarea"
               />
+            </div>
+            <div className="input-group" style={{ marginTop: '1rem' }}>
+              <label>Attach Photo (Optional)</label>
+              {generalPhoto ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' }}>
+                  <img src={generalPhoto.previewUrl} alt="Attached" style={{ height: '80px', borderRadius: '4px', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
+                  <button 
+                    type="button" 
+                    className="secondary-btn" 
+                    style={{ padding: '0.35rem 0.7rem', fontSize: '0.85rem' }}
+                    onClick={() => {
+                      if (generalPhoto && generalPhoto.previewUrl) {
+                        URL.revokeObjectURL(generalPhoto.previewUrl);
+                      }
+                      setGeneralPhoto(null);
+                    }}
+                  >
+                    Remove Photo
+                  </button>
+                </div>
+              ) : (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <label className="secondary-btn" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                    {isCompressingImage ? (
+                      <span><span className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px', display: 'inline-block', marginRight: '6px' }}></span> Compressing…</span>
+                    ) : (
+                      <span>📷 Attach Photo</span>
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      style={{ display: 'none' }}
+                      onChange={async (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        try {
+                          setIsCompressingImage(true);
+                          const compressed = await compressImage(file);
+                          if (generalPhoto && generalPhoto.previewUrl) {
+                            URL.revokeObjectURL(generalPhoto.previewUrl);
+                          }
+                          setGeneralPhoto(compressed);
+                        } catch (err) {
+                          console.error('Error compressing image:', err);
+                          toast.error('Failed to process image.');
+                        } finally {
+                          setIsCompressingImage(false);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              )}
             </div>
           </div>
 
@@ -602,8 +584,8 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
                 <input type="text" placeholder="e.g., Senior Engineer" value={cmmData.designation} onChange={e => setCmmData({ ...cmmData, designation: e.target.value })} required className="styled-input" />
               </div>
               <div className="input-group">
-                <label>Date <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-                <input type="date" value={cmmData.date} onChange={e => setCmmData({ ...cmmData, date: e.target.value })} required className="styled-input" />
+                <label>Date (Auto-captured)</label>
+                <input type="text" value={cmmData.date} readOnly className="styled-input" style={{ cursor: 'not-allowed', color: 'var(--text-secondary)' }} />
               </div>
             </div>
           </div>
@@ -611,51 +593,21 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
           {/* ── Action Buttons ── */}
           <div className="section-divider" style={{ margin: '1.5rem 0' }}></div>
 
-          {/* Primary: Generate Review Link */}
           <button
             type="submit"
             className="primary-btn submit-btn"
-            disabled={isGeneratingLink || isSubmitting}
+            disabled={isSubmitting}
             style={{ marginBottom: '0.75rem' }}
-          >
-            {isGeneratingLink ? (
-              <><span className="spinner"></span> Generating Link…</>
-            ) : (
-              <>🔗 Generate Review Link &amp; Share</>
-            )}
-          </button>
-
-          {/* Secondary: Direct Submit (no remote review) */}
-          <button
-            type="button"
-            className="secondary-btn submit-btn"
-            onClick={handleDirectSubmit}
-            disabled={isSubmitting || isGeneratingLink}
-            title="Use this if both parties are physically present"
           >
             {isSubmitting ? (
               <><span className="spinner"></span> Submitting…</>
             ) : (
-              <>✍️ Submit Directly (No Review Link)</>
+              <>✍️ Submit Checklist</>
             )}
           </button>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.5rem', textAlign: 'center' }}>
-            Use "Submit Directly" only when Area Maintenance is physically present to sign in person.
-          </p>
 
         </form>
       </div>
-
-      {/* Share Link Modal */}
-      {shareTokenId && (
-        <ShareLinkModal
-          tokenId={shareTokenId.id}
-          expiresAtMs={shareTokenId.expiresAtMs}
-          checklistTitle={selectedChecklist.title}
-          fillerName={fillerName.trim() || 'Anonymous'}
-          onClose={() => { setShareTokenId(null); handleReset(); }}
-        />
-      )}
     </div>
   );
 }

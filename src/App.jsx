@@ -152,7 +152,33 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <Toaster position="bottom-center" />
+      <Toaster 
+        position="bottom-right" 
+        toastOptions={{
+          style: {
+            background: 'rgba(15, 23, 42, 0.9)',
+            color: '#fff',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '12px',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+            padding: '16px',
+            fontSize: '0.95rem'
+          },
+          success: {
+            iconTheme: {
+              primary: '#10b981',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#fff',
+            },
+          },
+        }} 
+      />
       {/* ── Animated 3D Background ── */}
       <div className="background-3d">
         <div className="shape-3d cube"></div>
@@ -262,8 +288,8 @@ function App() {
           </>
         )}
 
-        {/* Right pane — hidden on mobile when list tab active */}
-        <div className={`right-pane-wrapper ${mobileTab === 'content' ? 'mobile-active' : 'mobile-hidden'}`}>
+        {/* Right pane — always visible for admin; tab-controlled for users */}
+        <div className={`right-pane-wrapper ${!isAdminLoggedIn ? (mobileTab === 'content' ? 'mobile-active' : 'mobile-hidden') : ''}`}>
           {isAdminLoggedIn ? (
             <Suspense fallback={
               <div style={{ padding: '24px', width: '100%' }}>

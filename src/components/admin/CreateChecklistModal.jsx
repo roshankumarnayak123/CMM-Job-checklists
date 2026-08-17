@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
 import { toast } from 'react-hot-toast';
 import CheckpointsEditor from './CheckpointsEditor';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
+import { firebaseService } from '../../services/firebaseService';
 
 export default function CreateChecklistModal({ showCreateModal, setShowCreateModal }) {
   useLockBodyScroll(showCreateModal);
@@ -22,7 +21,9 @@ export default function CreateChecklistModal({ showCreateModal, setShowCreateMod
     if (!title.trim() || !description.trim()) return;
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, 'checklists'), { title: title.trim(), description: description.trim(), checkpoints });
+      await firebaseService.createChecklist({ title: title.trim(), description: description.trim(), checkpoints });
+      await firebaseService.logEvent('Template Created', `Created checklist template: "${title.trim()}"`);
+      toast.success('Checklist created successfully!');
       setShowCreateModal(false);
     } catch (err) {
       console.error(err);
@@ -44,7 +45,7 @@ export default function CreateChecklistModal({ showCreateModal, setShowCreateMod
 
   return createPortal(
     <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '100%' }}>
+      <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: '800px', width: '100%' }}>
         <div className="modal-header">
           <h3>✨ Create New Checklist</h3>
           <button type="button" className="close-btn" aria-label="Close modal" onClick={handleClose}>✕</button>

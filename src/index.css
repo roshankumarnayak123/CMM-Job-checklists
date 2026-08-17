@@ -462,3 +462,13 @@ body::after {
   transform-style: preserve-3d;
   perspective: 1000px;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   DROPDOWN MENU VISIBILITY FIX
+═══════════════════════════════════════════════════════════ */
+select option {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  padding: 8px;
+}

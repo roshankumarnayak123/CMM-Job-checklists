@@ -1,9 +1,38 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 
-export default function SubmissionCard({ sub, onDelete }) {
+export default function SubmissionCard({ sub, activeToken, onDelete, onShareLink, onShowLink }) {
   const [expanded, setExpanded] = useState(false);
+  const [timeLeft, setTimeLeft] = useState('');
   const date = sub.submittedAt ? new Date(typeof sub.submittedAt.toDate === 'function' ? sub.submittedAt.toDate() : sub.submittedAt).toLocaleString() : 'Just now';
+
+  useEffect(() => {
+    if (!activeToken) {
+      setTimeLeft('');
+      return;
+    }
+
+    const expiresAt = new Date(activeToken.expiresAt?.toDate?.() || activeToken.expiresAt).getTime();
+    
+    const updateTimer = () => {
+      const now = Date.now();
+      const diff = expiresAt - now;
+      if (diff <= 0) {
+        setTimeLeft('Expired');
+        return;
+      }
+      
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [activeToken]);
 
   const handleDownloadPDF = async () => {
     const { generatePDFReport } = await import('../../utils/pdfGenerator');
@@ -24,10 +53,25 @@ export default function SubmissionCard({ sub, onDelete }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem', flexShrink: 0 }}>
           <span className="submission-time">{date}</span>
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
+          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
             <button className="pdf-btn" onClick={handleDownloadPDF}>
               📄 PDF
             </button>
+            {!sub.signatures?.amm && onShareLink && (
+              <div style={{ display: 'flex', gap: '0.4rem', position: 'relative' }}>
+                <button className="pdf-btn" onClick={() => onShareLink(sub)} style={{ color: '#25D366', borderColor: 'rgba(37, 211, 102, 0.3)' }}>
+                  🔗 {activeToken ? 'Re share link' : 'Share Link'}
+                </button>
+                {activeToken && onShowLink && (
+                  <button className="pdf-btn" onClick={() => onShowLink(sub, activeToken)} style={{ color: '#25D366', borderColor: 'rgba(37, 211, 102, 0.3)' }}>
+                    Show link
+                  </button>
+                )}
+              </div>
+            )}
+            {activeToken && timeLeft && timeLeft !== 'Expired' && (
+              <span style={{ fontSize: '0.65rem', color: 'var(--neon-amber)', marginTop: '2px', display: 'block', textAlign: 'right' }}>⏱ Expires in {timeLeft}</span>
+            )}
             <button className="pdf-btn" onClick={() => onDelete(sub)} style={{ color: 'var(--neon-red)', borderColor: 'rgba(255, 60, 60, 0.3)' }}>
               🗑️ Delete
             </button>
@@ -56,11 +100,6 @@ export default function SubmissionCard({ sub, onDelete }) {
                       <span style={{ color: 'var(--text-secondary)' }}>{cp.label}</span>
                       <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{cp.value || '—'}</span>
                     </div>
-                    {cp.photoDataUrl && (
-                      <div style={{ marginTop: '0.4rem' }}>
-                        <img src={cp.photoDataUrl} alt="Checkpoint photo" style={{ height: '40px', borderRadius: '4px', objectFit: 'cover' }} />
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
@@ -71,6 +110,15 @@ export default function SubmissionCard({ sub, onDelete }) {
             <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.85rem 1rem', borderRadius: '10px', marginBottom: '0.75rem' }}>
               <strong style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', fontFamily: 'var(--font-display)', fontWeight: 700 }}>Notes</strong>
               <p style={{ marginTop: '0.4rem', fontSize: '0.83rem', whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{sub.notes}</p>
+            </div>
+          )}
+
+          {sub.generalPhotoUrl && (
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.85rem 1rem', borderRadius: '10px', marginBottom: '0.75rem' }}>
+              <strong style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', fontFamily: 'var(--font-display)', fontWeight: 700 }}>Attached Photo</strong>
+              <div style={{ marginTop: '0.5rem' }}>
+                <img src={sub.generalPhotoUrl} alt="Attached photo" style={{ maxHeight: '200px', borderRadius: '4px', objectFit: 'contain' }} />
+              </div>
             </div>
           )}
 
