@@ -5,6 +5,7 @@ const AdminView = lazy(() => import('./AdminView'));
 import ChecklistActionView from './ChecklistActionView';
 import ReviewPage from './ReviewPage';
 import PWAInstallPrompt from './PWAInstallPrompt';
+import PWAUpdatePrompt from './PWAUpdatePrompt';
 import ErrorBoundary from './components/ErrorBoundary';
 import { Toaster } from 'react-hot-toast';
 import './App.css';
@@ -342,6 +343,7 @@ function App() {
 
       {/* ── PWA Install Prompt ── */}
       <PWAInstallPrompt />
+      <PWAUpdatePrompt />
     </ErrorBoundary>
   );
 }
