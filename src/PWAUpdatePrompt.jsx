@@ -45,6 +45,15 @@ export default function PWAUpdatePrompt() {
     };
   }, [swRegistration]);
 
+  useEffect(() => {
+    // Expose update functions globally so SettingsModal can trigger the update
+    window.__pwaUpdateAvailable = needRefresh;
+    window.__pwaPerformUpdate = () => {
+      setIsUpdating(true);
+      updateServiceWorker(true);
+    };
+  }, [needRefresh, updateServiceWorker]);
+
   const close = () => {
     setOfflineReady(false);
     setNeedRefresh(false);
@@ -74,17 +83,12 @@ export default function PWAUpdatePrompt() {
                 ? 'Please wait while we refresh the app.'
                 : (offlineReady 
                     ? 'You can now use this app without an internet connection.' 
-                    : 'A new version of the app is available. Please update.')}
+                    : 'A new version of the app is available. Please go to Settings to update.')}
             </p>
           </div>
         </div>
         {!isUpdating && (
           <div className="pwa-banner-actions" style={{ margin: 0 }}>
-            {needRefresh ? (
-              <button className="primary-btn" onClick={handleUpdate} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', minHeight: '32px' }}>
-                Update App
-              </button>
-            ) : null}
             <button className="secondary-btn" onClick={close} style={{ padding: '0.4rem 0.6rem', fontSize: '0.75rem', minHeight: '32px' }}>
               Close
             </button>

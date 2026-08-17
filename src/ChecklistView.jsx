@@ -135,12 +135,17 @@ export default function ChecklistView({ checklists, loading, selectedChecklist, 
               >
                 <div className="card-title">{checklist.title}</div>
                 {checklist.description && (
-                  <div className="card-desc">{checklist.description}</div>
+                  <div className="card-desc" title={checklist.description}>{checklist.description}</div>
                 )}
                 <div className="card-meta">
                   {checklist.checkpoints?.length > 0 && (
                     <span className="checkpoint-badge">
                       {checklist.checkpoints.length} checkpoint{checklist.checkpoints.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {checklist.createdAt && (
+                    <span className="card-date-badge">
+                      {new Date(typeof checklist.createdAt.toDate === 'function' ? checklist.createdAt.toDate() : checklist.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </span>
                   )}
                   {selectedChecklist?.id === checklist.id && (

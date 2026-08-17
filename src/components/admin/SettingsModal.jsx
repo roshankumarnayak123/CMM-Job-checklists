@@ -12,6 +12,7 @@ const SETTINGS_TABS = [
   { id: 'cloud', icon: '📊', label: 'Cloud Usage' },
   { id: 'areas', icon: '📍', label: 'Areas' },
   { id: 'account', icon: '👤', label: 'Account' },
+  { id: 'system', icon: '⚙️', label: 'System' },
   { id: 'manual', icon: '📘', label: 'CMM Manual' },
   { id: 'audit', icon: '📝', label: 'Audit Log' }
 ];
@@ -30,6 +31,9 @@ export default function SettingsModal({ showSettings, setShowSettings, rawCloudD
   const { data: areasList, loading: areasLoading } = useAreas();
   const [newAreaName, setNewAreaName] = useState('');
   const [isAddingArea, setIsAddingArea] = useState(false);
+  const [showEraseConfirm, setShowEraseConfirm] = useState(false);
+  const [erasePassword, setErasePassword] = useState('');
+  const [isErasing, setIsErasing] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'cloud' && showSettings) {
@@ -89,6 +93,29 @@ export default function SettingsModal({ showSettings, setShowSettings, rawCloudD
     } catch (err) {
       console.error("Error calculating storage:", err);
       setStorageStats(prev => ({ ...prev, isCalculating: false }));
+    }
+  };
+
+  const handleMasterErase = async () => {
+    if (erasePassword !== '7504401859') {
+      toast.error('Incorrect password');
+      return;
+    }
+    
+    setIsErasing(true);
+    try {
+      await firebaseService.eraseAllCloudData();
+      await firebaseService.logEvent('Master Data Wipe', 'All cloud data erased by Admin');
+      toast.success('All cloud data erased successfully!');
+      setShowEraseConfirm(false);
+      setErasePassword('');
+      // Force recalculation of storage
+      calculateStorage();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to erase cloud data.');
+    } finally {
+      setIsErasing(false);
     }
   };
 
@@ -290,6 +317,91 @@ export default function SettingsModal({ showSettings, setShowSettings, rawCloudD
               >
                 Reset Password
               </button>
+            </div>
+          )}
+          {activeTab === 'system' && (
+            <div className="settings-section animate-fade-in" style={{ padding: '1rem' }}>
+              <h4>System Updates</h4>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                Check if there is a new version of the app ready to install.
+              </p>
+              
+              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                {window.__pwaUpdateAvailable ? (
+                  <>
+                    <h5 style={{ color: 'var(--neon-cyan)', margin: '0 0 0.5rem 0' }}>Update Available!</h5>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>
+                      A newer version of CMM Checklists has been downloaded in the background.
+                    </p>
+                    <button 
+                      className="primary-btn" 
+                      onClick={() => {
+                        if (typeof window.__pwaPerformUpdate === 'function') {
+                          window.__pwaPerformUpdate();
+                        } else {
+                          window.location.reload(true);
+                        }
+                      }}
+                    >
+                      Update App Now
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <h5 style={{ color: 'var(--neon-green)', margin: '0 0 0.5rem 0' }}>App is up to date</h5>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0' }}>
+                      You are running the latest version.
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* Danger Zone */}
+              <div style={{ marginTop: '2rem', padding: '1rem', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.05)' }}>
+                <h4 style={{ color: 'var(--neon-red)', margin: '0 0 0.5rem 0' }}>Danger Zone</h4>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                  This will permanently erase all checklist templates, submissions, review tokens, and audit logs from the cloud.
+                </p>
+                
+                {!showEraseConfirm ? (
+                  <button 
+                    className="secondary-btn" 
+                    style={{ color: 'var(--neon-red)', borderColor: 'var(--neon-red)' }}
+                    onClick={() => setShowEraseConfirm(true)}
+                  >
+                    Erase All Cloud Data
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <input 
+                      type="password" 
+                      placeholder="Enter Admin Password" 
+                      className="styled-input"
+                      value={erasePassword}
+                      onChange={(e) => setErasePassword(e.target.value)}
+                    />
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button 
+                        className="primary-btn" 
+                        style={{ background: 'var(--neon-red)', color: 'white' }}
+                        onClick={handleMasterErase}
+                        disabled={isErasing || !erasePassword}
+                      >
+                        {isErasing ? 'Erasing...' : 'Confirm Erase'}
+                      </button>
+                      <button 
+                        className="secondary-btn" 
+                        onClick={() => {
+                          setShowEraseConfirm(false);
+                          setErasePassword('');
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           {activeTab === 'manual' && (

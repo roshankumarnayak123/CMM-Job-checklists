@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { firebaseService } from './services/firebaseService';
 import { toast } from 'react-hot-toast';
 import Papa from 'papaparse';
+import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useSubmissions, usePendingTokens } from './hooks/useFirebaseSubscriptions';
 
 import SettingsModal from './components/admin/SettingsModal';
@@ -36,13 +37,16 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
   const visibleSubmissions = submissions.filter(s => !hiddenSubmissionIds.includes(s.id));
   const visibleChecklists = rawCloudData.filter(c => !hiddenChecklistIds.includes(c.id));
 
+  const [bulkSelectedIds, setBulkSelectedIds] = useState([]);
+
   useEffect(() => {
     localStorage.setItem('adminTab', adminTab);
+    setBulkSelectedIds([]); // clear bulk selection on tab change
   }, [adminTab]);
 
-  const handleLogout = async () => await firebaseService.logout();
+  const handleLogout = useCallback(async () => await firebaseService.logout(), []);
 
-  const handleDeleteChecklist = async (checklistOrId) => {
+  const handleDeleteChecklist = useCallback(async (checklistOrId) => {
     const checklistId = typeof checklistOrId === 'string' ? checklistOrId : checklistOrId?.id;
     const checklistToHide = checklistId ? rawCloudData.find(c => c.id === checklistId) : selectedChecklist;
     if (!checklistToHide) return;
@@ -82,9 +86,9 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
         }
       }
     }, 3000);
-  };
+  }, [rawCloudData, selectedChecklist, setSelectedChecklist]);
 
-  const handleDeleteSubmission = async (sub) => {
+  const handleDeleteSubmission = useCallback(async (sub) => {
     setHiddenSubmissionIds(prev => [...prev, sub.id]);
     
     let isUndone = false;
@@ -108,16 +112,18 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
       if (!isUndone) {
         try {
           await firebaseService.deleteSubmission(sub.id);
+          await firebaseService.logEvent('Submission Deleted', `Deleted submission: ${sub.uniqueCode}`);
         } catch (err) {
           console.error(err);
+          firebaseService.logEvent('Error', `Failed to delete submission ${sub.uniqueCode}: ${err.message}`);
           toast.error('Failed to delete submission.');
           setHiddenSubmissionIds(prev => prev.filter(id => id !== sub.id));
         }
       }
     }, 3000);
-  };
+  }, []);
 
-  const handleExportCSV = () => {
+  const handleExportCSV = useCallback(() => {
     if (submissions.length === 0 && pendingTokens.length === 0) {
       toast.error('No submissions to export.');
       return;
@@ -165,9 +171,9 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  };
+  }, [submissions, pendingTokens, visibleSubmissions]);
 
-  const handleGenerateShareLink = async (sub) => {
+  const handleGenerateShareLink = useCallback(async (sub) => {
     try {
       const toastId = toast.loading('Generating link...');
       const expiresAt = new Date(Date.now() + 3600000); // 1 hour
@@ -193,14 +199,66 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
       setShareTokenExpiresAt(expiresAt.getTime());
     } catch (err) {
       console.error(err);
+      firebaseService.logEvent('Error', `Failed to generate share link: ${err.message}`);
       toast.error('Failed to generate link');
     }
-  };
+  }, []);
 
-  const handleDownloadPDF = async (sub) => {
+  const handleDownloadPDF = useCallback(async (sub) => {
     const { generatePDFReport } = await import('./utils/pdfGenerator');
     generatePDFReport(sub);
-  };
+  }, []);
+
+  const handleBulkToggle = useCallback((id) => {
+    setBulkSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }, []);
+
+  const handleSelectAll = useCallback((ids) => {
+    setBulkSelectedIds(prev => prev.length === ids.length ? [] : ids);
+  }, []);
+
+  const handleBulkDelete = useCallback(() => {
+    if (!bulkSelectedIds.length) return;
+    if (window.confirm(`Are you sure you want to delete ${bulkSelectedIds.length} submissions?`)) {
+      setHiddenSubmissionIds(prev => [...prev, ...bulkSelectedIds]);
+      toast.success(`${bulkSelectedIds.length} submissions deleted`);
+      
+      bulkSelectedIds.forEach(async (id) => {
+        try {
+          await firebaseService.deleteSubmission(id);
+        } catch(err) {
+          console.error('Failed bulk delete for', id, err);
+        }
+      });
+      firebaseService.logEvent('Bulk Action', `Deleted ${bulkSelectedIds.length} submissions`);
+      setBulkSelectedIds([]);
+    }
+  }, [bulkSelectedIds]);
+
+  // Chart data formatting
+  const chartData = useMemo(() => {
+    if (!visibleSubmissions.length) return [];
+    
+    // Group by day for the last 7 days
+    const counts = {};
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      counts[d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })] = 0;
+    }
+
+    visibleSubmissions.forEach(sub => {
+      if (!sub.submittedAt) return;
+      const date = new Date(typeof sub.submittedAt.toDate === 'function' ? sub.submittedAt.toDate() : sub.submittedAt);
+      const key = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+      if (counts[key] !== undefined) {
+        counts[key]++;
+      }
+    });
+
+    return Object.entries(counts).map(([date, count]) => ({ date, count }));
+  }, [visibleSubmissions]);
 
   /* ── Tab Rendering ── */
   const renderTabContent = () => {
@@ -231,6 +289,27 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
                 </div>
               </div>
             </div>
+
+            {chartData.length > 0 && (
+              <div className="trend-chart-wrap">
+                <div className="trend-chart-title">Submission Trend (Last 7 Days)</div>
+                <div style={{ width: '100%', height: 200 }}>
+                  <ResponsiveContainer>
+                    <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
+                      <XAxis dataKey="date" stroke="var(--text-tertiary)" fontSize={11} tickLine={false} axisLine={false} />
+                      <YAxis stroke="var(--text-tertiary)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                      <RechartsTooltip 
+                        contentStyle={{ backgroundColor: 'var(--bg-glass)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}
+                        itemStyle={{ color: 'var(--accent)' }}
+                        cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
+                      />
+                      <Line type="monotone" dataKey="count" name="Submissions" stroke="var(--accent)" strokeWidth={3} dot={{ fill: 'var(--bg-primary)', stroke: 'var(--accent)', strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: 'var(--neon-cyan)' }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem', marginBottom: '1rem' }}>
               <h3 style={{ fontSize: '1.1rem', fontFamily: 'var(--font-display)', margin: 0 }}>Recent Submissions</h3>
@@ -343,8 +422,8 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
                     <input 
                       type="text" 
                       placeholder="Search submissions by code, title, or name..." 
-                      className="text-input" 
-                      style={{ flex: 1, minWidth: '250px' }}
+                      className="styled-input" 
+                      style={{ flex: 1, minWidth: 0, padding: '0.6rem 1rem' }}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -352,32 +431,59 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
                       📥 Export CSV
                     </button>
                   </div>
-                  {visibleSubmissions
-                    .filter(sub => {
+                  
+                  {bulkSelectedIds.length > 0 && (
+                    <div className="bulk-action-bar">
+                      <span className="bulk-count">{bulkSelectedIds.length} selected</span>
+                      <button className="secondary-btn" onClick={() => setBulkSelectedIds([])} style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>Cancel</button>
+                      <button className="secondary-btn" onClick={handleBulkDelete} style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--neon-red)', borderColor: 'rgba(239,68,68,0.3)' }}>🗑️ Delete Selected</button>
+                    </div>
+                  )}
+
+                  {(() => {
+                    const filtered = visibleSubmissions.filter(sub => {
                       if (!searchTerm) return true;
                       const term = searchTerm.toLowerCase();
                       const matchesCode = sub.uniqueCode?.toLowerCase().includes(term);
                       const matchesTitle = sub.checklistTitle?.toLowerCase().includes(term);
                       const matchesName = sub.fillerName?.toLowerCase().includes(term) || sub.signatures?.cmm?.name?.toLowerCase().includes(term);
                       return matchesCode || matchesTitle || matchesName;
-                    })
-                    .map(sub => {
-                      const activeToken = pendingTokens.find(t => t.submissionId === sub.id && t.status === 'pending' && new Date(t.expiresAt?.toDate?.() || t.expiresAt) > new Date());
-                      return (
-                        <SubmissionCard 
-                          key={sub.id} 
-                          sub={sub} 
-                          activeToken={activeToken} 
-                          onDelete={handleDeleteSubmission} 
-                          onShareLink={handleGenerateShareLink} 
-                          onShowLink={(sub, token) => {
-                            setShareTokenId(token.id);
-                            setShareSub(sub);
-                            setShareTokenExpiresAt(new Date(token.expiresAt?.toDate?.() || token.expiresAt).getTime());
-                          }}
-                        />
-                      );
-                    })}
+                    });
+                    return (
+                      <>
+                        <div style={{ marginBottom: '0.75rem', paddingLeft: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                            <input 
+                              type="checkbox" 
+                              className="bulk-checkbox"
+                              checked={filtered.length > 0 && bulkSelectedIds.length === filtered.length}
+                              onChange={() => handleSelectAll(filtered.map(s => s.id))}
+                            />
+                            Select All
+                          </label>
+                        </div>
+                        {filtered.map(sub => {
+                          const activeToken = pendingTokens.find(t => t.submissionId === sub.id && t.status === 'pending' && new Date(t.expiresAt?.toDate?.() || t.expiresAt) > new Date());
+                          return (
+                            <SubmissionCard 
+                              key={sub.id} 
+                              sub={sub} 
+                              activeToken={activeToken} 
+                              onDelete={handleDeleteSubmission} 
+                              onShareLink={handleGenerateShareLink}
+                              bulkSelected={bulkSelectedIds.includes(sub.id)}
+                              onBulkToggle={handleBulkToggle}
+                              onShowLink={(sub, token) => {
+                                setShareTokenId(token.id);
+                                setShareSub(sub);
+                                setShareTokenExpiresAt(new Date(token.expiresAt?.toDate?.() || token.expiresAt).getTime());
+                              }}
+                            />
+                          );
+                        })}
+                      </>
+                    );
+                  })()}
                   {visibleSubmissions.length === limitCount && (
                     <div style={{ textAlign: 'center', marginTop: '1rem' }}>
                       <button className="secondary-btn" onClick={() => setLimitCount(prev => prev + 20)}>Load More</button>
@@ -439,7 +545,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
 
   /* ── Main admin dashboard ── */
   return (
-    <div className="right-pane dashboard-pane animate-slide-in" style={{ padding: '2rem' }}>
+    <div className="right-pane dashboard-pane animate-slide-in" style={{ padding: 'clamp(1rem, 4vw, 2rem)' }}>
       {/* Portaled modals — rendered into document.body */}
       <SettingsModal showSettings={showSettings} setShowSettings={setShowSettings} rawCloudData={rawCloudData} />
       <CreateChecklistModal showCreateModal={showCreateModal} setShowCreateModal={setShowCreateModal} />
@@ -460,7 +566,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
       )}
 
       {/* Admin Header with Top Nav */}
-      <div className="dashboard-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '1.5rem', marginBottom: '2rem' }}>
+      <div className="dashboard-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '1rem', marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <h2>Admin Dashboard</h2>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -480,38 +586,41 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
           </div>
         </div>
         
-        <div className="admin-nav-tabs">
-          <button 
-            className={`admin-tab ${adminTab === 'dashboard' ? 'active' : ''}`} 
-            onClick={() => setAdminTab('dashboard')}
-          >
-            Overview
-          </button>
-          <button 
-            className={`admin-tab ${adminTab === 'templates' ? 'active' : ''}`} 
-            onClick={() => setAdminTab('templates')}
-          >
-            Checklists
-          </button>
-          <button 
-            className={`admin-tab ${adminTab === 'submissions' ? 'active' : ''}`} 
-            onClick={() => setAdminTab('submissions')}
-          >
-            Submissions
-            {visibleSubmissions.length > 0 && <span className="admin-tab-badge">{visibleSubmissions.length}</span>}
-          </button>
-          <button 
-            className={`admin-tab ${adminTab === 'rejected' ? 'active' : ''}`} 
-            onClick={() => setAdminTab('rejected')}
-          >
-            Rejected
-            {visibleSubmissions.filter(s => s.status === 'rejected').length > 0 && (
-              <span className="admin-tab-badge" style={{ background: 'var(--neon-red)', color: 'white' }}>
-                {visibleSubmissions.filter(s => s.status === 'rejected').length}
-              </span>
-            )}
-          </button>
-        </div>
+        <nav className="admin-nav-tabs glass-panel" style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '0.5rem' }}>
+          {VALID_TABS.map(tab => {
+            const getBadge = () => {
+              if (tab === 'templates') return visibleChecklists.length || null;
+              if (tab === 'submissions') {
+                const pendingCount = visibleSubmissions.filter(s => !s.signatures?.amm && s.status !== 'rejected').length;
+                return (
+                  <>
+                    <span>{visibleSubmissions.length}</span>
+                    {pendingCount > 0 && <span className="admin-tab-badge-pending" title={`${pendingCount} pending AMM`}>{pendingCount}</span>}
+                  </>
+                );
+              }
+              if (tab === 'rejected') {
+                const count = visibleSubmissions.filter(s => s.status === 'rejected').length;
+                return count > 0 ? count : null;
+              }
+              return null;
+            };
+
+            const badgeContent = getBadge();
+            return (
+              <button
+                key={tab}
+                className={`admin-tab ${adminTab === tab ? 'active' : ''}`}
+                onClick={() => setAdminTab(tab)}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {badgeContent !== null && (
+                  <span className="admin-tab-badge">{badgeContent}</span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
       {renderTabContent()}

@@ -27,12 +27,17 @@ export default function ChecklistActionView({ selectedChecklist, onBack }) {
   if (!selectedChecklist) {
     return (
       <div className="right-pane dashboard-pane">
-        <div className="empty-state glass-panel animate-fade-in">
-          <div className="empty-state-icon">📋</div>
-          <h3>No Checklist Selected</h3>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
-            Pick a checklist from the left panel to start.
+        <div className="guided-empty-state animate-fade-in">
+          <span className="guide-icon">📋</span>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', margin: 0 }}>No Checklist Selected</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', maxWidth: '260px', margin: 0 }}>
+            Pick a checklist from the <strong style={{ color: 'var(--neon-cyan)' }}>Checklists</strong> tab to start filling it out.
           </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent)', fontFamily: 'var(--font-display)', fontSize: '0.85rem', fontWeight: 600 }}>
+            <span className="guide-arrow">←</span>
+            <span className="mobile-only" style={{ display: 'flex' }}>Tap <strong style={{ margin: '0 0.3rem' }}>Checklists</strong> below</span>
+            <span className="desktop-only">Select from the left panel</span>
+          </div>
         </div>
       </div>
     );
@@ -44,7 +49,7 @@ export default function ChecklistActionView({ selectedChecklist, onBack }) {
 
   if (mode === 'history') {
     return (
-      <div className="right-pane dashboard-pane animate-slide-in" style={{ padding: '2rem' }}>
+      <div className="right-pane dashboard-pane animate-slide-in">
         <div className="dashboard-header" style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
           <div>
             <h2>Filled Checklists</h2>
@@ -141,7 +146,7 @@ export default function ChecklistActionView({ selectedChecklist, onBack }) {
 
   // Menu mode
   return (
-    <div className="right-pane dashboard-pane animate-fade-in" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+    <div className="right-pane dashboard-pane animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
         <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem', fontFamily: 'var(--font-display)' }}>{selectedChecklist.title}</h2>
         <p style={{ color: 'var(--text-secondary)' }}>What would you like to do?</p>

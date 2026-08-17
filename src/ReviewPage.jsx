@@ -8,6 +8,12 @@ export default function ReviewPage({ tokenId }) {
   const [submitError, setSubmitError] = useState('');
   const [timeLeft, setTimeLeft] = useState('');
 
+  // Theme persistence (#13): apply saved theme on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('app-theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  }, []);
+
   useEffect(() => {
     if (!tokenData || !tokenData.expiresAt || status !== 'ready') return;
 
@@ -265,9 +271,19 @@ export default function ReviewPage({ tokenId }) {
           <div className="app-logo-icon">⚙️</div>
           <span className="app-logo-text">CMM Checklist</span>
         </div>
-        <div className="review-header-badge">
-          <span className="review-badge-dot" />
-          Review &amp; Sign
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <button
+            className="secondary-btn print-show"
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+            onClick={() => window.print()}
+            title="Print this review"
+          >
+            🖨️ Print
+          </button>
+          <div className="review-header-badge">
+            <span className="review-badge-dot" />
+            Review &amp; Sign
+          </div>
         </div>
       </header>
 
@@ -373,6 +389,7 @@ export default function ReviewPage({ tokenId }) {
                 value={ammData.name}
                 onChange={e => setAmmData({ ...ammData, name: e.target.value })}
                 className="styled-input"
+                autoComplete="name"
               />
             </div>
             <div className="input-group">
@@ -384,16 +401,18 @@ export default function ReviewPage({ tokenId }) {
                 value={ammData.designation}
                 onChange={e => setAmmData({ ...ammData, designation: e.target.value })}
                 className="styled-input"
+                autoComplete="organization-title"
               />
             </div>
             <div className="input-group">
-              <label>Date <span style={{ color: 'var(--neon-red)' }}>*</span></label>
+              <label>Date (Auto-captured) <span style={{ color: 'var(--neon-red)' }}>*</span></label>
               <input
                 type="date"
                 required
                 value={ammData.date}
-                onChange={e => setAmmData({ ...ammData, date: e.target.value })}
+                readOnly
                 className="styled-input"
+                style={{ opacity: 0.7, cursor: 'not-allowed', backgroundColor: 'var(--bg-glass-strong)' }}
               />
             </div>
             <div className="input-group">

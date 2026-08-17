@@ -48,6 +48,10 @@ function App() {
   const [loginError, setLoginError] = useState('');
   // Mobile: which tab is active — 'list' | 'content'
   const [mobileTab, setMobileTab] = useState('list');
+  // Network status
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  // Admin session timeout
+  const [showSessionWarning, setShowSessionWarning] = useState(false);
 
   const navigateWithTransition = useCallback((callback) => {
     if (!document.startViewTransition) {
@@ -101,6 +105,51 @@ function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Offline / Online detection (#1)
+  useEffect(() => {
+    const goOnline  = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online',  goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online',  goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
+
+  // Admin session timeout — 30 min inactivity (#6)
+  useEffect(() => {
+    if (!isAdminLoggedIn) {
+      setShowSessionWarning(false);
+      return;
+    }
+    const INACTIVITY_MS   = 30 * 60 * 1000; // 30 min
+    const WARNING_MS      = 25 * 60 * 1000; // warn at 25 min (5 min before logout)
+    let warningTimer;
+    let logoutTimer;
+
+    const resetTimers = () => {
+      clearTimeout(warningTimer);
+      clearTimeout(logoutTimer);
+      setShowSessionWarning(false);
+      warningTimer = setTimeout(() => setShowSessionWarning(true),  WARNING_MS);
+      logoutTimer  = setTimeout(() => {
+        firebaseService.logout();
+        toast('Session expired. You have been logged out.', { icon: '⏰', duration: 5000 });
+      }, INACTIVITY_MS);
+    };
+
+    const events = ['mousemove', 'keydown', 'touchstart', 'click', 'scroll'];
+    events.forEach(e => window.addEventListener(e, resetTimers, { passive: true }));
+    resetTimers(); // start timers immediately
+
+    return () => {
+      clearTimeout(warningTimer);
+      clearTimeout(logoutTimer);
+      events.forEach(e => window.removeEventListener(e, resetTimers));
+    };
+  }, [isAdminLoggedIn]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -197,8 +246,31 @@ function App() {
         <div className="shape-3d ring"></div>
         <div className="shape-3d cross"></div>
       </div>
+      {/* ── Offline Banner (#1) ── */}
+      {!isOnline && (
+        <div className="offline-banner" role="alert" aria-live="assertive">
+          <span className="offline-dot" />
+          You're offline — changes will sync when you reconnect
+        </div>
+      )}
 
-      {/* ── Top Header Bar ── */}
+      {/* ── Admin Session Warning Overlay (#6) ── */}
+      {showSessionWarning && isAdminLoggedIn && (
+        <div className="session-warning-overlay" onClick={() => setShowSessionWarning(false)}>
+          <div className="session-warning-card" onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>⏰</div>
+            <h3 style={{ color: 'var(--neon-amber)', fontFamily: 'var(--font-display)', marginBottom: '0.75rem' }}>Session Expiring Soon</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '1.5rem' }}>
+              You will be automatically logged out in <strong style={{ color: 'var(--neon-amber)' }}>5 minutes</strong> due to inactivity.
+            </p>
+            <button className="primary-btn" style={{ width: '100%' }} onClick={() => setShowSessionWarning(false)}>
+              ✓ I'm still here — Keep me logged in
+            </button>
+          </div>
+        </div>
+      )}
+
+
       <header className="top-header glass-panel">
         <div className="app-logo">
           <div className="app-logo-icon">⚙️</div>

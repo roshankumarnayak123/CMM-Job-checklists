@@ -3,46 +3,59 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CMM Checklist Manual</title>
+<title>CMM Checklist Operations Manual</title>
 <style>
   :root {
-    --primary: #3b82f6;
-    --primary-dark: #2563eb;
-    --bg: #0f172a;
-    --text: #f8fafc;
-    --text-muted: #94a3b8;
-    --border: #1e293b;
-    --card: #1e293b;
+    --bg-dark: #0a0a0f;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --neon-blue: #3b82f6;
+    --neon-purple: #8b5cf6;
+    --glass-bg: rgba(30, 41, 59, 0.7);
+    --glass-border: rgba(148, 163, 184, 0.15);
   }
   
   body { 
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; 
-    line-height: 1.6; 
-    color: var(--text); 
-    background-color: var(--bg);
-    max-width: 800px; 
+    font-family: 'Inter', -apple-system, sans-serif; 
+    line-height: 1.7; 
+    color: var(--text-primary); 
+    background-color: var(--bg-dark);
+    max-width: 900px; 
     margin: 0 auto; 
-    padding: 2rem; 
+    padding: 3rem 2rem; 
   }
   
   h1 { 
-    color: var(--primary); 
-    border-bottom: 2px solid var(--border); 
-    padding-bottom: 1rem; 
-    margin-bottom: 2rem;
-    font-size: 2.2rem;
+    font-size: 2.5rem;
+    background: linear-gradient(135deg, #a78bfa 0%, #60a5fa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+  }
+
+  .subtitle {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    margin-bottom: 3rem;
   }
   
   h2 { 
-    color: #e2e8f0; 
-    margin-top: 2.5rem; 
+    color: #fff;
+    margin-top: 3rem; 
     font-size: 1.5rem;
-    border-left: 4px solid var(--primary);
-    padding-left: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  
+  h3 {
+    color: #cbd5e1;
+    margin-top: 1.5rem;
+    font-size: 1.2rem;
   }
   
   p, li { 
-    color: #cbd5e1;
+    color: var(--text-secondary);
     margin-bottom: 1rem; 
     font-size: 1.05rem;
   }
@@ -52,71 +65,106 @@
     padding-left: 1.5rem;
   }
   
-  li {
-    margin-bottom: 0.75rem;
+  li::marker {
+    color: var(--neon-blue);
   }
   
   strong {
-    color: #fff;
+    color: #e2e8f0;
+    font-weight: 600;
   }
 
   .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1.5rem;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 2rem;
     margin-bottom: 2rem;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   }
   
   .note { 
-    background: rgba(34, 197, 94, 0.1); 
-    border-left: 4px solid #22c55e; 
-    padding: 1rem; 
+    background: rgba(59, 130, 246, 0.1); 
+    border-left: 4px solid var(--neon-blue); 
+    padding: 1rem 1.5rem; 
     margin: 2rem 0; 
     border-radius: 0 8px 8px 0;
   }
   
   .note strong {
-    color: #4ade80;
+    color: #60a5fa;
+  }
+
+  code {
+    background: rgba(0,0,0,0.3);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    color: #a78bfa;
+    font-family: monospace;
   }
 </style>
 </head>
 <body>
-  <h1>📋 CMM Checklist - User Manual</h1>
+  <h1>CMM Checklist - User Manual</h1>
+  <p class="subtitle">Comprehensive Operations and Administration Guide (v2.0)</p>
   
-  <p>Welcome to the official <strong>Central Mechanical Maintenance (CMM) Checklist</strong> application manual. This platform digitizes and tracks maintenance protocols across departments, ensuring compliance and easy reporting.</p>
+  <p>Welcome to the official <strong>Central Mechanical Maintenance (CMM) Checklist</strong> application manual. This modernized platform digitizes, tracks, and standardizes maintenance protocols, ensuring seamless compliance and cross-departmental reporting.</p>
   
   <div class="card">
-    <h2>1. Overview</h2>
-    <p>The CMM Checklist application consists of two main perspectives:</p>
+    <h2>🎯 1. Overview of the System</h2>
+    <p>The CMM Checklist application is built with a state-of-the-art "Glassmorphism" interface and operates across three primary user journeys:</p>
     <ul>
-      <li><strong>Technician View:</strong> Fill out assigned maintenance checklists, attach photo evidence, and sign off on completion.</li>
-      <li><strong>Admin Dashboard:</strong> Create checklist templates, review submitted records, and monitor cloud usage.</li>
+      <li><strong>Junior Engineer (CMM) Flow:</strong> Execution of maintenance checklists, data entry, image capture, and primary digital signature.</li>
+      <li><strong>Junior Engineer (AMM) Review Flow:</strong> Independent verification process via secure sharing links to review, add notes, and counter-sign submitted tasks.</li>
+      <li><strong>Admin Dashboard:</strong> Centralized management of checklist templates, user activity logs, data retention, and PDF report generation.</li>
     </ul>
   </div>
 
   <div class="card">
-    <h2>2. For Technicians (Filling Checklists)</h2>
+    <h2>🛠️ 2. Junior Engineer Operations (CMM)</h2>
+    <h3>Selecting and Filling Checklists</h3>
     <ul>
-      <li><strong>Selecting a Task:</strong> Use the left-hand sidebar to select the specific maintenance task/checklist assigned to you.</li>
-      <li><strong>Data Entry:</strong> Provide your Name, Designation, and Date. Follow the instructions for each checkpoint. Input types range from simple Yes/No toggles to specific number readings.</li>
-      <li><strong>Photo Evidence:</strong> For critical steps, click <strong>"Attach Photo"</strong> to capture and upload an image of the machinery or reading.</li>
-      <li><strong>Submission:</strong> Once complete, click <strong>"Submit Checklist"</strong>. You will receive a Tracking Code upon successful upload which can be used for future reference.</li>
+      <li><strong>Task Selection:</strong> Use the left-hand sidebar to select the specific equipment or area checklist assigned to you.</li>
+      <li><strong>Data Entry:</strong> Follow the on-screen prompts for each checkpoint. You may be asked to toggle Yes/No, select options, or provide specific numerical readings.</li>
+      <li><strong>Mandatory Photos:</strong> If a checkpoint requires visual evidence, click <strong>"Attach Photo"</strong> to upload an image of the machinery.</li>
+    </ul>
+
+    <h3>CMM Signature and Submission</h3>
+    <ul>
+      <li><strong>Automated Dates:</strong> The signature date is <strong>auto-captured</strong> directly from the system clock to ensure data integrity.</li>
+      <li><strong>Designation:</strong> Provide your name and exact designation (e.g., Senior Mechanical Engineer).</li>
+      <li><strong>Tracking Code:</strong> Upon clicking <strong>"Submit Checklist"</strong>, the system will generate a unique 10-character Tracking Code. Save this code! You can use it to share the checklist with the AMM or fill another checklist immediately.</li>
     </ul>
   </div>
 
   <div class="card">
-    <h2>3. For Administrators</h2>
+    <h2>✅ 3. Area Maintenance (AMM) Review Process</h2>
+    <p>Once the Junior Engineer (CMM) submits a checklist, it must be verified by the Junior Engineer (Area Maintenance).</p>
     <ul>
-      <li><strong>Dashboard:</strong> Upon logging in, you will see recent submissions across all departments on your main dashboard.</li>
-      <li><strong>Template Builder:</strong> Click "Create New Checklist" in the sidebar to build a new template. You can add required or optional checkpoints.</li>
-      <li><strong>Reviewing Submissions:</strong> Click on any completed submission card to view the technician's notes, answers, and uploaded photos in detail.</li>
-      <li><strong>Settings & Management:</strong> Access cloud usage statistics, manage your account password, and view this manual via the <strong>Settings</strong> button at the top right.</li>
+      <li><strong>Accessing the Report:</strong> The AMM can access the report by navigating to the unique review link (e.g., <code>/review/TRACKING_CODE</code>) provided by the Junior Engineer (CMM).</li>
+      <li><strong>Reviewing Data:</strong> The AMM can view all recorded checkpoint answers, uploaded photos, and CMM notes. This data is strictly read-only to prevent tampering.</li>
+      <li><strong>Counter-Signature:</strong> After verification, the AMM can add their own remarks and electronically sign off on the job. The AMM signature date is also auto-captured.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>👑 4. Administrator Dashboard & Features</h2>
+    <h3>Submission Tracking & PDF Reports</h3>
+    <ul>
+      <li><strong>Live Dashboard:</strong> Admins can view all submitted checklists in real-time. Submissions indicate whether they are pending AMM review or fully completed.</li>
+      <li><strong>PDF Generation:</strong> Click on any submission to view its details, then click <strong>"Print / Save PDF"</strong>. The system will automatically generate a highly-formatted, offline-ready PDF report featuring the official Tata Steel branding.</li>
+    </ul>
+
+    <h3>System Settings & Auditing</h3>
+    <ul>
+      <li><strong>Audit Logs:</strong> The system automatically tracks critical events (e.g., template creation, data deletion). The audit log stores the most recent 200 operations to maintain performance while ensuring accountability.</li>
+      <li><strong>Master Data Deletion:</strong> In the System settings, admins can execute a complete cloud data wipe (clearing all submissions, templates, and review links). This requires a secure master password to prevent accidental data loss.</li>
     </ul>
   </div>
 
   <div class="note">
-    <strong>Note:</strong> Ensure you have a stable internet connection when submitting checklists, especially if they contain multiple high-resolution photos.
+    <strong>Security Note:</strong> Your application data is synced securely with the Cloud Server. Ensure you have a stable internet connection when submitting checklists with high-resolution images. If the app goes offline, wait for the connection to re-establish before clicking Submit.
   </div>
 </body>
 </html>

@@ -472,3 +472,45 @@ select option {
   font-family: var(--font-sans);
   padding: 8px;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   REDUCED MOTION — Accessibility (#9)
+   Respects OS setting: System Preferences → Accessibility → Reduce Motion
+═══════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration:   0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration:  0.01ms !important;
+    scroll-behavior:      auto !important;
+  }
+
+  /* Keep spinners working so loading state is visible */
+  .spinner {
+    animation-duration: 0.8s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  /* Disable 3D background shapes */
+  body::before,
+  body::after,
+  .shape-3d {
+    animation: none !important;
+    opacity: 0.3;
+  }
+
+  /* Disable card tilt transitions */
+  .checklist-card,
+  .glass-panel {
+    transition: box-shadow 0.15s ease !important;
+  }
+
+  /* Disable view transitions */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+

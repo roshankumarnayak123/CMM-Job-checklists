@@ -40,6 +40,17 @@ export const firebaseService = {
   updateSubmission: async (id, data) => await updateDoc(doc(db, 'filled_checklists', id), data),
   deleteSubmission: async (id) => await deleteDoc(doc(db, 'filled_checklists', id)),
   
+  // Master Reset
+  eraseAllCloudData: async () => {
+    const collections = ['checklists', 'filled_checklists', 'audit_logs', 'areas', 'review_tokens'];
+    for (const colName of collections) {
+      const snapshot = await getDocs(collection(db, colName));
+      for (const document of snapshot.docs) {
+        await deleteDoc(document.ref);
+      }
+    }
+  },
+  
   // Review Tokens
   subscribeToTokens: (callback, onError) => {
     const q = query(collection(db, 'review_tokens'), orderBy('createdAt', 'desc'), limit(500));
@@ -86,12 +97,22 @@ export const firebaseService = {
         user: user || (auth.currentUser ? auth.currentUser.email : 'Anonymous Technician'),
         timestamp: serverTimestamp()
       });
+
+      // Keep only 200 audit logs
+      const q = query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'));
+      const snapshot = await getDocs(q);
+      if (snapshot.docs.length > 200) {
+        const docsToDelete = snapshot.docs.slice(200);
+        for (const docSnapshot of docsToDelete) {
+          await deleteDoc(docSnapshot.ref);
+        }
+      }
     } catch (e) {
       console.error("Failed to log event:", e);
     }
   },
   subscribeToAuditLogs: (callback, onError) => {
-    const q = query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(100));
+    const q = query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(200));
     return onSnapshot(q, snapshot => {
       callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, onError);

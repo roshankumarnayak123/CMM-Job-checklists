@@ -1,4 +1,5 @@
 import React from 'react';
+import { firebaseService } from '../services/firebaseService';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -12,6 +13,13 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error("ErrorBoundary caught an error", error, errorInfo);
+    
+    // Log to Firestore for admin visibility
+    try {
+      firebaseService.logEvent('React Error', `Error: ${error?.message || 'Unknown'}\nStack: ${errorInfo?.componentStack || ''}`);
+    } catch (e) {
+      console.error("Failed to log error to Firestore", e);
+    }
   }
 
   render() {

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 
 
-export default function SubmissionCard({ sub, activeToken, onDelete, onShareLink, onShowLink, onResubmit }) {
+export default function SubmissionCard({ sub, activeToken, onDelete, onShareLink, onShowLink, onResubmit, bulkSelected, onBulkToggle }) {
   const [expanded, setExpanded] = useState(false);
   const [timeLeft, setTimeLeft] = useState('');
   const date = sub.submittedAt ? new Date(typeof sub.submittedAt.toDate === 'function' ? sub.submittedAt.toDate() : sub.submittedAt).toLocaleString() : 'Just now';
+  const cardClass = `submission-card glass-panel${bulkSelected ? ' bulk-selected' : ''}`;
 
   useEffect(() => {
     if (!activeToken) {
@@ -40,10 +41,22 @@ export default function SubmissionCard({ sub, activeToken, onDelete, onShareLink
   };
 
   return (
-    <div className="submission-card glass-panel">
+    <div className={cardClass}>
       {/* Always-visible row */}
       <div className="submission-header">
-        <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setExpanded(e => !e)}>
+        {onBulkToggle && (
+          <div className="bulk-checkbox-wrap">
+            <input
+              type="checkbox"
+              className="bulk-checkbox"
+              checked={!!bulkSelected}
+              onChange={() => onBulkToggle(sub.id)}
+              aria-label={`Select submission ${sub.uniqueCode}`}
+              onClick={e => e.stopPropagation()}
+            />
+          </div>
+        )}
+        <div style={{ flex: 1, cursor: 'pointer', paddingLeft: onBulkToggle ? '2rem' : 0 }} onClick={() => setExpanded(e => !e)}>
           <div className="submission-code">{sub.uniqueCode}</div>
           <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.15rem', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
             <strong style={{ color: 'var(--text-primary)' }}>{sub.checklistTitle}</strong>
@@ -56,9 +69,9 @@ export default function SubmissionCard({ sub, activeToken, onDelete, onShareLink
             )}
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem', flexShrink: 0 }}>
+        <div className="submission-action-btns" style={{ flexDirection: 'column', alignItems: 'flex-end' }}>
           <span className="submission-time">{date}</span>
-          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+          <div className="submission-action-btns">
             <button className="pdf-btn" onClick={handleDownloadPDF}>
               📄 PDF
             </button>
@@ -129,7 +142,7 @@ export default function SubmissionCard({ sub, activeToken, onDelete, onShareLink
             <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.85rem 1rem', borderRadius: '10px', marginBottom: '0.75rem' }}>
               <strong style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', fontFamily: 'var(--font-display)', fontWeight: 700 }}>Attached Photo</strong>
               <div style={{ marginTop: '0.5rem' }}>
-                <img src={sub.generalPhotoUrl} alt="Attached photo" style={{ maxHeight: '200px', borderRadius: '4px', objectFit: 'contain' }} />
+                <img src={sub.generalPhotoUrl} alt="Attached photo" loading="lazy" style={{ maxHeight: '200px', borderRadius: '4px', objectFit: 'contain' }} />
               </div>
             </div>
           )}

@@ -75,6 +75,7 @@ export default function FillChecklistView({ selectedChecklist, editSubmission, o
   const [cmmData, setCmmData] = useState({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
   const [currentStep, setCurrentStep]       = useState(0);
   const totalSteps = 3;
+  const [validationError, setValidationError] = useState(''); // sticky error banner
 
   useEffect(() => {
     setSubmittedCode(null);
@@ -223,6 +224,8 @@ export default function FillChecklistView({ selectedChecklist, editSubmission, o
     }
     const firstUnansweredRequired = selectedChecklist.checkpoints?.find(cp => cp.required && !checkpointValues[cp.id]);
     if (firstUnansweredRequired) {
+      const unansweredCount = selectedChecklist.checkpoints?.filter(cp => cp.required && !checkpointValues[cp.id]).length || 1;
+      setValidationError(`⚠️ ${unansweredCount} required checkpoint${unansweredCount > 1 ? 's' : ''} missing`);
       toast.error('Please fill out all required checkpoints.');
       const el = document.getElementById(`cp-${firstUnansweredRequired.id}`);
       if (el) {
@@ -233,6 +236,7 @@ export default function FillChecklistView({ selectedChecklist, editSubmission, o
       return;
     }
 
+    setValidationError('');
     setIsSubmitting(true);
 
     try {
@@ -324,6 +328,7 @@ export default function FillChecklistView({ selectedChecklist, editSubmission, o
     setGeneralPhoto(null);
     setCmmData({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
     setCurrentStep(0);
+    setValidationError('');
   };
 
   /* ── Empty state ── */
@@ -361,31 +366,32 @@ export default function FillChecklistView({ selectedChecklist, editSubmission, o
             Your signed checklist has been recorded. Save your tracking code:
           </p>
 
-          <div className="tracking-code" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+          <div
+            className="tracking-code"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+            onClick={() => {
+              navigator.clipboard.writeText(submittedCode);
+              toast.success('Copied to clipboard!');
+            }}
+            title="Tap to copy tracking code"
+          >
             <span>{submittedCode}</span>
-            <button
-              className="copy-btn"
-              onClick={() => {
-                navigator.clipboard.writeText(submittedCode);
-                toast.success("Copied to clipboard!");
-              }}
-              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginLeft: '0.5rem' }}
-              title="Copy Tracking Code"
-            >
+            <span style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginLeft: '0.5rem', background: 'rgba(139,92,246,0.15)', borderRadius: '6px', color: 'var(--accent-hover)', fontFamily: 'var(--font-display)', fontWeight: 600 }}>
               📋 Copy
-            </button>
+            </span>
+            <span className="copy-hint">Tap anywhere to copy</span>
           </div>
 
           <p style={{ marginTop: '1.5rem', fontSize: '0.8rem', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
             Present this code to your supervisor for verification.
           </p>
 
-          <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', flexWrap: 'wrap', justifyContent: 'center', flexDirection: 'column', alignItems: 'center' }}>
             {reviewTokenId && (
               <button
                 onClick={() => setShowShareModal(true)}
                 className="primary-btn"
-                style={{ minWidth: '200px', backgroundColor: '#25D366', borderColor: '#25D366' }}
+                style={{ width: '100%', maxWidth: '320px', backgroundColor: '#25D366', borderColor: '#25D366' }}
               >
                 💬 Share with AMM
               </button>
@@ -393,7 +399,7 @@ export default function FillChecklistView({ selectedChecklist, editSubmission, o
             <button
               onClick={handleReset}
               className="secondary-btn"
-              style={{ minWidth: '200px' }}
+              style={{ width: '100%', maxWidth: '320px' }}
             >
               ✍️ Fill Another Checklist
             </button>
@@ -401,12 +407,20 @@ export default function FillChecklistView({ selectedChecklist, editSubmission, o
               <button
                 onClick={onBack}
                 className="secondary-btn"
-                style={{ minWidth: '200px' }}
+                style={{ width: '100%', maxWidth: '320px' }}
               >
                 ← Back to Menu
               </button>
             )}
           </div>
+
+          {/* Pending AMM status (#2) */}
+          {reviewTokenId && (
+            <div className="pending-amm-status">
+              <span className="pending-amm-dot" />
+              Waiting for AMM to review and sign via the shared link…
+            </div>
+          )}
           
           {showShareModal && reviewTokenId && (
             <ShareLinkModal 
@@ -457,7 +471,21 @@ export default function FillChecklistView({ selectedChecklist, editSubmission, o
 
         <div className="section-divider"></div>
 
-        <form onSubmit={handleSubmit} className="checklist-form">
+        <form onSubmit={handleSubmit} className="checklist-form" onKeyDown={e => {
+          // Ctrl+Enter or Cmd+Enter to submit (#27)
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            handleSubmit(e);
+          }
+        }}>
+
+          {/* Sticky validation error banner (#12) */}
+          {validationError && (
+            <div className="sticky-error-banner" role="alert">
+              {validationError}
+              <button className="sticky-error-close" onClick={() => setValidationError('')} aria-label="Dismiss error">×</button>
+            </div>
+          )}
 
           {/* ── Section 1: Basic Info ── */}
           <div className="form-section" id="section-info">
@@ -474,6 +502,7 @@ export default function FillChecklistView({ selectedChecklist, editSubmission, o
                 placeholder="Enter your full name"
                 required
                 className="styled-input"
+                autoComplete="name"
               />
             </div>
           </div>
@@ -486,6 +515,23 @@ export default function FillChecklistView({ selectedChecklist, editSubmission, o
                 <span className="section-number">2</span>
                 <span>Checkpoints ({selectedChecklist.checkpoints.length})</span>
               </div>
+              {/* Progress bar (#11) */}
+              {(() => {
+                const total = selectedChecklist.checkpoints.length;
+                const answered = selectedChecklist.checkpoints.filter(cp => checkpointValues[cp.id] && checkpointValues[cp.id] !== '').length;
+                const pct = total > 0 ? Math.round((answered / total) * 100) : 0;
+                const isDone = answered === total;
+                return (
+                  <div className="checkpoint-progress-bar-wrap">
+                    <div className="checkpoint-progress-bar-track">
+                      <div className="checkpoint-progress-bar-fill" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className={`checkpoint-progress-label${isDone ? ' done' : ''}`}>
+                      {isDone ? '✓ All done' : `${answered}/${total}`}
+                    </span>
+                  </div>
+                );
+              })()}
               <div className="checkpoints-list">
                 {selectedChecklist.checkpoints.map((cp, idx) => {
                   const val = checkpointValues[cp.id] || '';
@@ -515,6 +561,7 @@ export default function FillChecklistView({ selectedChecklist, editSubmission, o
                       {cp.type === 'number' && (
                         <input
                           type="number"
+                          inputMode="numeric"
                           value={val}
                           onChange={e => handleCheckpointChange(cp.id, e.target.value)}
                           placeholder="0"
@@ -641,15 +688,22 @@ export default function FillChecklistView({ selectedChecklist, editSubmission, o
               </div>
               <div className="input-group">
                 <label>Name <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-                <input type="text" placeholder="Full name" value={cmmData.name} onChange={e => setCmmData({ ...cmmData, name: e.target.value })} required className="styled-input" />
+                <input type="text" placeholder="Full name" value={cmmData.name} onChange={e => setCmmData({ ...cmmData, name: e.target.value })} required className="styled-input" autoComplete="name" />
+              </div>
+              <div className="input-group">
+                <label>Date (Auto-captured) <span style={{ color: 'var(--neon-red)' }}>*</span></label>
+                <input 
+                  type="date" 
+                  required 
+                  value={cmmSignature.date} 
+                  readOnly 
+                  className="styled-input" 
+                  style={{ opacity: 0.7, cursor: 'not-allowed', backgroundColor: 'var(--bg-glass-strong)' }}
+                />
               </div>
               <div className="input-group">
                 <label>Designation <span style={{ color: 'var(--neon-red)' }}>*</span></label>
-                <input type="text" placeholder="e.g., Senior Engineer" value={cmmData.designation} onChange={e => setCmmData({ ...cmmData, designation: e.target.value })} required className="styled-input" />
-              </div>
-              <div className="input-group">
-                <label>Date (Auto-captured)</label>
-                <input type="text" value={cmmData.date} readOnly className="styled-input" style={{ cursor: 'not-allowed', color: 'var(--text-secondary)' }} />
+                <input type="text" placeholder="e.g., Senior Engineer" value={cmmData.designation} onChange={e => setCmmData({ ...cmmData, designation: e.target.value })} required className="styled-input" autoComplete="organization-title" />
               </div>
             </div>
           </div>
