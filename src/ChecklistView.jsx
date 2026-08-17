@@ -85,7 +85,7 @@ export default function ChecklistView({ checklists, loading, selectedChecklist, 
             disabled={areasLoading}
           >
             <option value="">{areasLoading ? 'Loading areas...' : '👇 Select an Area First'}</option>
-            <option value="ALL">🌍 All Areas</option>
+
             {areasList.map(area => (
               <option key={area.id} value={area.id}>📍 {area.name}</option>
             ))}
