@@ -15,7 +15,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
   const [showSettings, setShowSettings]       = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal]     = useState(false);
-  const VALID_TABS = ['dashboard', 'templates', 'submissions'];
+  const VALID_TABS = ['dashboard', 'templates', 'submissions', 'rejected'];
   const [adminTab, setAdminTab]               = useState(() => {
     const saved = localStorage.getItem('adminTab');
     return VALID_TABS.includes(saved) ? saved : 'dashboard';
@@ -42,7 +42,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
 
   const handleLogout = async () => await firebaseService.logout();
 
-  const handleDeleteChecklist = (checklistOrId) => {
+  const handleDeleteChecklist = async (checklistOrId) => {
     const checklistId = typeof checklistOrId === 'string' ? checklistOrId : checklistOrId?.id;
     const checklistToHide = checklistId ? rawCloudData.find(c => c.id === checklistId) : selectedChecklist;
     if (!checklistToHide) return;
@@ -68,7 +68,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
           Undo
         </button>
       </div>
-    ), { duration: 5000 });
+    ), { duration: 3000 });
 
     setTimeout(async () => {
       if (!isUndone) {
@@ -81,10 +81,10 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
           setHiddenChecklistIds(prev => prev.filter(id => id !== checklistToHide.id));
         }
       }
-    }, 5000);
+    }, 3000);
   };
 
-  const handleDeleteSubmission = (sub) => {
+  const handleDeleteSubmission = async (sub) => {
     setHiddenSubmissionIds(prev => [...prev, sub.id]);
     
     let isUndone = false;
@@ -102,7 +102,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
           Undo
         </button>
       </div>
-    ), { duration: 5000 });
+    ), { duration: 3000 });
 
     setTimeout(async () => {
       if (!isUndone) {
@@ -114,7 +114,7 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
           setHiddenSubmissionIds(prev => prev.filter(id => id !== sub.id));
         }
       }
-    }, 5000);
+    }, 3000);
   };
 
   const handleExportCSV = () => {
@@ -219,8 +219,15 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
               <div className="metric-card glass-panel">
                 <div className="metric-icon">⏳</div>
                 <div className="metric-info">
-                  <span className="metric-value">{visibleSubmissions.filter(s => !s.signatures?.amm).length}</span>
+                  <span className="metric-value">{visibleSubmissions.filter(s => !s.signatures?.amm && s.status !== 'rejected').length}</span>
                   <span className="metric-label">Pending AMM Signatures</span>
+                </div>
+              </div>
+              <div className="metric-card glass-panel" style={{ borderColor: 'rgba(255, 60, 60, 0.3)' }}>
+                <div className="metric-icon">⛔</div>
+                <div className="metric-info">
+                  <span className="metric-value">{visibleSubmissions.filter(s => s.status === 'rejected').length}</span>
+                  <span className="metric-label">AMM Rejected</span>
                 </div>
               </div>
             </div>
@@ -381,6 +388,49 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
             </div>
           </div>
         );
+
+      case 'rejected':
+        const rejectedSubmissions = visibleSubmissions.filter(sub => sub.status === 'rejected');
+        return (
+          <div className="submissions-tab animate-fade-in">
+            <div className="checklist-container">
+              {submissionsLoading && rejectedSubmissions.length === 0 ? (
+                <>
+                  <div className="skeleton-card"><div className="skeleton-line"></div></div>
+                </>
+              ) : rejectedSubmissions.length === 0 ? (
+                <div className="empty-state glass-panel">
+                  <div className="empty-state-icon">✅</div>
+                  <h3>No Rejected Checklists</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>All checklists look good!</p>
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <h3 style={{ color: 'var(--neon-red)' }}>Checklists Rejected by AMM</h3>
+                  </div>
+                  {rejectedSubmissions.map(sub => {
+                    const activeToken = pendingTokens.find(t => t.submissionId === sub.id && t.status === 'pending' && new Date(t.expiresAt?.toDate?.() || t.expiresAt) > new Date());
+                    return (
+                      <SubmissionCard 
+                        key={sub.id} 
+                        sub={sub} 
+                        activeToken={activeToken} 
+                        onDelete={handleDeleteSubmission} 
+                        onShareLink={handleGenerateShareLink} 
+                        onShowLink={(sub, token) => {
+                          setShareTokenId(token.id);
+                          setShareSub(sub);
+                          setShareTokenExpiresAt(new Date(token.expiresAt?.toDate?.() || token.expiresAt).getTime());
+                        }}
+                      />
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          </div>
+        );
       
       default:
         return null;
@@ -449,6 +499,17 @@ export default function AdminView({ selectedChecklist, setSelectedChecklist, raw
           >
             Submissions
             {visibleSubmissions.length > 0 && <span className="admin-tab-badge">{visibleSubmissions.length}</span>}
+          </button>
+          <button 
+            className={`admin-tab ${adminTab === 'rejected' ? 'active' : ''}`} 
+            onClick={() => setAdminTab('rejected')}
+          >
+            Rejected
+            {visibleSubmissions.filter(s => s.status === 'rejected').length > 0 && (
+              <span className="admin-tab-badge" style={{ background: 'var(--neon-red)', color: 'white' }}>
+                {visibleSubmissions.filter(s => s.status === 'rejected').length}
+              </span>
+            )}
           </button>
         </div>
       </div>

@@ -62,7 +62,7 @@ function StepIndicator({ currentStep, totalSteps }) {
   );
 }
 
-export default function FillChecklistView({ selectedChecklist, onBack }) {
+export default function FillChecklistView({ selectedChecklist, editSubmission, onBack }) {
   const [fillerName, setFillerName]         = useState('');
   const [notes, setNotes]                   = useState('');
   const [isSubmitting, setIsSubmitting]     = useState(false);
@@ -79,6 +79,28 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
   useEffect(() => {
     setSubmittedCode(null);
     setGeneralPhoto(null);
+    
+    if (editSubmission) {
+      setFillerName(editSubmission.fillerName || '');
+      setNotes(editSubmission.notes || '');
+      setCmmData(editSubmission.signatures?.cmm || { name: '', designation: '', date: new Date().toISOString().split('T')[0] });
+      
+      const values = {};
+      if (editSubmission.checkpointResponses) {
+        editSubmission.checkpointResponses.forEach(cp => {
+          const matchedDef = selectedChecklist?.checkpoints?.find(def => def.label === cp.label);
+          if (matchedDef) {
+            values[matchedDef.id] = (cp.value === 'Yes' && matchedDef.type === 'checkbox') ? 'true' : (cp.value === 'No' && matchedDef.type === 'checkbox') ? 'false' : cp.value;
+          }
+        });
+      }
+      setCheckpointValues(values);
+      if (editSubmission.generalPhotoUrl) {
+        setGeneralPhoto({ previewUrl: editSubmission.generalPhotoUrl, dataUrl: null });
+      }
+      setCurrentStep(0);
+      return;
+    }
     
     const initialValues = {};
     if (selectedChecklist?.checkpoints) {
@@ -109,7 +131,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     setCheckpointValues(initialValues);
     setCmmData({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
     setCurrentStep(0);
-  }, [selectedChecklist]);
+  }, [selectedChecklist, editSubmission]);
 
   // Autosave
   useEffect(() => {
@@ -175,8 +197,12 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     // save the compressed Base64 string directly into Firestore.
     // It's small enough (~50KB) to easily fit inside the 1MB Firestore document limit.
     const uploadedImageUrls = {};
-    if (generalPhoto && generalPhoto.dataUrl) {
-      uploadedImageUrls.general = generalPhoto.dataUrl;
+    if (generalPhoto) {
+      if (generalPhoto.dataUrl) {
+        uploadedImageUrls.general = generalPhoto.dataUrl;
+      } else if (generalPhoto.previewUrl) {
+        uploadedImageUrls.general = generalPhoto.previewUrl;
+      }
     }
     return uploadedImageUrls;
   };
@@ -210,7 +236,7 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
     setIsSubmitting(true);
 
     try {
-      const code = generateCode();
+      const code = editSubmission ? editSubmission.uniqueCode : generateCode();
       const uploadedImageUrls = await withTimeout(
         uploadPhotos(),
         15000,
@@ -218,19 +244,48 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
       );
       const payloadBase = buildPayload(code, uploadedImageUrls);
       
-      const submitPromise = await firebaseService.submitChecklist({
-        ...payloadBase,
-        submittedAt: firebaseService.getServerTimestamp(),
-        signatures: {
-          cmm: payloadBase.cmmSignature,
-          amm: null
-        },
-        reviewMode: 'direct'
-      });
+      let submitId;
+      if (editSubmission) {
+        submitId = editSubmission.id;
+        const previousVersion = {
+          status: editSubmission.status || 'rejected',
+          ammRemarks: editSubmission.ammRemarks || '',
+          checkpointResponses: editSubmission.checkpointResponses || [],
+          notes: editSubmission.notes || '',
+          signatures: editSubmission.signatures || null,
+          generalPhotoUrl: editSubmission.generalPhotoUrl || null,
+          submittedAt: editSubmission.submittedAt || null,
+          resubmittedAt: new Date().toISOString()
+        };
+        const updatedHistory = [...(editSubmission.history || []), previousVersion];
+
+        await firebaseService.updateSubmission(submitId, {
+          ...payloadBase,
+          status: 'pending',
+          ammRemarks: null,
+          ammSignedAt: null,
+          history: updatedHistory,
+          signatures: {
+            cmm: payloadBase.cmmSignature,
+            amm: null
+          }
+        });
+      } else {
+        const submitPromise = await firebaseService.submitChecklist({
+          ...payloadBase,
+          submittedAt: firebaseService.getServerTimestamp(),
+          signatures: {
+            cmm: payloadBase.cmmSignature,
+            amm: null
+          },
+          reviewMode: 'direct'
+        });
+        submitId = submitPromise.id;
+      }
 
       // Generate Review Token for AMM
       const tokenData = {
-        submissionId: submitPromise.id,
+        submissionId: submitId,
         checklistId: selectedChecklist.id,
         checklistTitle: selectedChecklist.title,
         fillerName: fillerName.trim() || 'Anonymous',
@@ -342,6 +397,15 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
             >
               ✍️ Fill Another Checklist
             </button>
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="secondary-btn"
+                style={{ minWidth: '200px' }}
+              >
+                ← Back to Menu
+              </button>
+            )}
           </div>
           
           {showShareModal && reviewTokenId && (
@@ -369,8 +433,8 @@ export default function FillChecklistView({ selectedChecklist, onBack }) {
           </p>
         </div>
         {onBack && (
-          <button className="secondary-btn mobile-only" onClick={onBack} style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem' }}>
-            ← Back
+          <button className="secondary-btn" onClick={onBack} style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem' }}>
+            ← Back to Menu
           </button>
         )}
       </div>

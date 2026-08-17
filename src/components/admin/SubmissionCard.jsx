@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 
-export default function SubmissionCard({ sub, activeToken, onDelete, onShareLink, onShowLink }) {
+export default function SubmissionCard({ sub, activeToken, onDelete, onShareLink, onShowLink, onResubmit }) {
   const [expanded, setExpanded] = useState(false);
   const [timeLeft, setTimeLeft] = useState('');
   const date = sub.submittedAt ? new Date(typeof sub.submittedAt.toDate === 'function' ? sub.submittedAt.toDate() : sub.submittedAt).toLocaleString() : 'Just now';
@@ -45,10 +45,15 @@ export default function SubmissionCard({ sub, activeToken, onDelete, onShareLink
       <div className="submission-header">
         <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setExpanded(e => !e)}>
           <div className="submission-code">{sub.uniqueCode}</div>
-          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.15rem', fontFamily: 'var(--font-display)' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.15rem', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
             <strong style={{ color: 'var(--text-primary)' }}>{sub.checklistTitle}</strong>
-            <span style={{ margin: '0 0.4rem', color: 'var(--text-tertiary)' }}>·</span>
+            <span style={{ color: 'var(--text-tertiary)' }}>·</span>
             {sub.fillerName}
+            {sub.status === 'rejected' && (
+              <span style={{ padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(255, 60, 60, 0.15)', color: 'var(--neon-red)', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', border: '1px solid rgba(255, 60, 60, 0.3)' }}>
+                Rejected
+              </span>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem', flexShrink: 0 }}>
@@ -72,9 +77,16 @@ export default function SubmissionCard({ sub, activeToken, onDelete, onShareLink
             {activeToken && timeLeft && timeLeft !== 'Expired' && (
               <span style={{ fontSize: '0.65rem', color: 'var(--neon-amber)', marginTop: '2px', display: 'block', textAlign: 'right' }}>⏱ Expires in {timeLeft}</span>
             )}
-            <button className="pdf-btn" onClick={() => onDelete(sub)} style={{ color: 'var(--neon-red)', borderColor: 'rgba(255, 60, 60, 0.3)' }}>
-              🗑️ Delete
-            </button>
+            {onDelete && (
+              <button className="pdf-btn" onClick={() => onDelete(sub)} style={{ color: 'var(--neon-red)', borderColor: 'rgba(255, 60, 60, 0.3)' }}>
+                🗑️ Delete
+              </button>
+            )}
+            {sub.status === 'rejected' && onResubmit && (
+              <button className="pdf-btn" onClick={() => onResubmit(sub)} style={{ color: 'var(--neon-amber)', borderColor: 'rgba(245, 158, 11, 0.3)' }}>
+                ✏️ Re-Submit
+              </button>
+            )}
             <button
               onClick={() => setExpanded(e => !e)}
               style={{ background: 'none', border: 'none', color: 'var(--accent-hover)', fontSize: '0.72rem', fontFamily: 'var(--font-display)', fontWeight: 600, cursor: 'pointer', padding: '0.2rem 0.4rem' }}
@@ -118,6 +130,39 @@ export default function SubmissionCard({ sub, activeToken, onDelete, onShareLink
               <strong style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', fontFamily: 'var(--font-display)', fontWeight: 700 }}>Attached Photo</strong>
               <div style={{ marginTop: '0.5rem' }}>
                 <img src={sub.generalPhotoUrl} alt="Attached photo" style={{ maxHeight: '200px', borderRadius: '4px', objectFit: 'contain' }} />
+              </div>
+            </div>
+          )}
+
+          {sub.status === 'rejected' && sub.ammRemarks && (
+            <div style={{ background: 'rgba(255, 60, 60, 0.08)', border: '1px solid rgba(255, 60, 60, 0.3)', padding: '0.85rem 1rem', borderRadius: '10px', marginBottom: '0.75rem' }}>
+              <strong style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--neon-red)', fontFamily: 'var(--font-display)', fontWeight: 700 }}>⚠️ AMM Rejection Remarks</strong>
+              <p style={{ marginTop: '0.4rem', fontSize: '0.83rem', whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{sub.ammRemarks}</p>
+            </div>
+          )}
+
+          {sub.history && sub.history.length > 0 && (
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.85rem 1rem', borderRadius: '10px', marginBottom: '0.75rem' }}>
+              <h4 style={{ margin: '0 0 0.6rem 0', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
+                Submission History ({sub.history.length} Previous {sub.history.length === 1 ? 'Attempt' : 'Attempts'})
+              </h4>
+              <div style={{ display: 'grid', gap: '0.6rem' }}>
+                {sub.history.map((hist, idx) => (
+                  <div key={idx} style={{ borderBottom: idx < sub.history.length - 1 ? '1px solid var(--border)' : 'none', paddingBottom: idx < sub.history.length - 1 ? '0.6rem' : '0' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>
+                      Attempt {idx + 1}
+                      {hist.status === 'rejected' && <span style={{ marginLeft: '0.5rem', color: 'var(--neon-red)' }}>[Rejected]</span>}
+                    </div>
+                    {hist.ammRemarks && (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        <strong>AMM Remarks:</strong> {hist.ammRemarks}
+                      </div>
+                    )}
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.2rem' }}>
+                      Resubmitted: {new Date(hist.resubmittedAt).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

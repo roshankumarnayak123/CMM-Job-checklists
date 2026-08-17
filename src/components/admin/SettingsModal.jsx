@@ -6,9 +6,11 @@ import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
 import { toast } from 'react-hot-toast';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 import { firebaseService } from '../../services/firebaseService';
+import { useAreas } from '../../hooks/useFirebaseSubscriptions';
 
 const SETTINGS_TABS = [
   { id: 'cloud', icon: '📊', label: 'Cloud Usage' },
+  { id: 'areas', icon: '📍', label: 'Areas' },
   { id: 'account', icon: '👤', label: 'Account' },
   { id: 'manual', icon: '📘', label: 'CMM Manual' },
   { id: 'audit', icon: '📝', label: 'Audit Log' }
@@ -25,6 +27,9 @@ export default function SettingsModal({ showSettings, setShowSettings, rawCloudD
   });
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditLogsLoading, setAuditLogsLoading] = useState(false);
+  const { data: areasList, loading: areasLoading } = useAreas();
+  const [newAreaName, setNewAreaName] = useState('');
+  const [isAddingArea, setIsAddingArea] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'cloud' && showSettings) {
@@ -186,6 +191,80 @@ export default function SettingsModal({ showSettings, setShowSettings, rawCloudD
                 </div>
               </div>
 
+            </div>
+          )}
+          {activeTab === 'areas' && (
+            <div className="settings-section animate-fade-in" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '400px' }}>
+              <h4>Manage Areas</h4>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                Create areas to categorize your checklists (e.g., Engine Room, Bridge, Deck).
+              </p>
+              
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!newAreaName.trim()) return;
+                  setIsAddingArea(true);
+                  try {
+                    await firebaseService.createArea({ name: newAreaName.trim() });
+                    setNewAreaName('');
+                    toast.success('Area added successfully');
+                  } catch (err) {
+                    console.error(err);
+                    toast.error('Failed to add area');
+                  } finally {
+                    setIsAddingArea(false);
+                  }
+                }}
+                style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}
+              >
+                <input
+                  type="text"
+                  placeholder="New area name..."
+                  value={newAreaName}
+                  onChange={(e) => setNewAreaName(e.target.value)}
+                  style={{ flex: 1, padding: '0.6rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-glass)', color: 'var(--text)' }}
+                  required
+                />
+                <button type="submit" className="primary-btn" disabled={isAddingArea}>
+                  {isAddingArea ? 'Adding...' : 'Add'}
+                </button>
+              </form>
+
+              <div className="audit-logs-container" style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {areasLoading ? (
+                  <div className="empty-state glass-panel" style={{ padding: '2rem' }}>
+                    <span className="spinner"></span>
+                  </div>
+                ) : areasList.length === 0 ? (
+                  <div className="empty-state glass-panel" style={{ padding: '2rem' }}>
+                    <p style={{ color: 'var(--text-tertiary)' }}>No areas defined.</p>
+                  </div>
+                ) : (
+                  areasList.map(area => (
+                    <div key={area.id} className="glass-panel" style={{ padding: '0.8rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ color: 'var(--text)' }}>{area.name}</strong>
+                      <button 
+                        className="secondary-btn" 
+                        style={{ color: 'var(--neon-red)', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                        onClick={async () => {
+                          if (window.confirm(`Are you sure you want to delete the area "${area.name}"?`)) {
+                            try {
+                              await firebaseService.deleteArea(area.id);
+                              toast.success('Area deleted');
+                            } catch (err) {
+                              console.error(err);
+                              toast.error('Failed to delete area');
+                            }
+                          }
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
           {activeTab === 'account' && (

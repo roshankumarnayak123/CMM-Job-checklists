@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react
 import { flushSync } from 'react-dom';
 import ChecklistView from './ChecklistView';
 const AdminView = lazy(() => import('./AdminView'));
-import FillChecklistView from './FillChecklistView';
+import ChecklistActionView from './ChecklistActionView';
 import ReviewPage from './ReviewPage';
 import PWAInstallPrompt from './PWAInstallPrompt';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -308,7 +308,7 @@ function App() {
               />
             </Suspense>
           ) : (
-            <FillChecklistView 
+            <ChecklistActionView 
               selectedChecklist={selectedChecklist} 
               onBack={() => navigateWithTransition(() => setMobileTab('list'))}
             />

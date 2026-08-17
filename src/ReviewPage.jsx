@@ -6,6 +6,33 @@ export default function ReviewPage({ tokenId }) {
   const [tokenData, setTokenData] = useState(null);
   const [ammData, setAmmData] = useState({ name: '', designation: '', date: new Date().toISOString().split('T')[0] });
   const [submitError, setSubmitError] = useState('');
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    if (!tokenData || !tokenData.expiresAt || status !== 'ready') return;
+
+    const expiresAt = new Date(tokenData.expiresAt?.toDate?.() || tokenData.expiresAt).getTime();
+    
+    const updateTimer = () => {
+      const now = Date.now();
+      const diff = expiresAt - now;
+      if (diff <= 0) {
+        setTimeLeft('Expired');
+        setStatus('expired');
+        return;
+      }
+      
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [tokenData, status]);
 
   useEffect(() => {
     async function fetchToken() {
@@ -38,9 +65,10 @@ export default function ReviewPage({ tokenId }) {
     fetchToken();
   }, [tokenId]);
 
-  const handleSubmit = async (e) => {
+  const [ammRemarks, setAmmRemarks] = useState('');
+
+  const submitAction = async (e, actionType) => {
     e.preventDefault();
-    // Bug #4 fix: validate all AMM fields explicitly
     if (!ammData.name.trim()) {
       setSubmitError('Please enter your full name.');
       return;
@@ -49,25 +77,32 @@ export default function ReviewPage({ tokenId }) {
       setSubmitError('Please enter your designation.');
       return;
     }
+    if (actionType === 'reject' && !ammRemarks.trim()) {
+      setSubmitError('Please provide remarks for why you are rejecting this checklist.');
+      return;
+    }
+    
     setSubmitError('');
     setStatus('submitting');
     try {
+      const finalStatus = actionType === 'approve' ? 'completed' : 'rejected';
       await firebaseService.updateReviewToken(tokenId, {
-        status: 'completed',
+        status: finalStatus,
         ammSignature: ammData,
         completedAt: firebaseService.getServerTimestamp(),
+        ammRemarks: ammRemarks.trim()
       });
       
-      // We update the existing submission instead of creating a new duplicate one
       if (tokenData.submissionId) {
         await firebaseService.updateSubmission(tokenData.submissionId, {
           'signatures.amm': ammData,
           ammSignedAt: new Date().toISOString(),
-          status: 'completed'
+          status: finalStatus,
+          ammRemarks: ammRemarks.trim()
         });
       }
       
-      setStatus('success');
+      setStatus(actionType === 'approve' ? 'success' : 'rejected_success');
     } catch (err) {
       console.error('Error submitting review:', err);
       setSubmitError('Failed to submit. Please try again.');
@@ -98,8 +133,11 @@ export default function ReviewPage({ tokenId }) {
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginTop: '0.5rem', maxWidth: '320px', textAlign: 'center' }}>
             This review link has expired (valid for 1 hour only). Please ask the CMM technician to generate a new link.
           </p>
-          <button className="primary-btn" style={{ marginTop: '2rem' }} onClick={() => window.location.href = window.location.origin + import.meta.env.BASE_URL}>
-            ← Go to App
+          <button className="primary-btn" style={{ marginTop: '2rem' }} onClick={() => {
+            window.close();
+            alert("You can safely close this tab now.");
+          }}>
+            Close Tab
           </button>
         </div>
       </div>
@@ -116,8 +154,11 @@ export default function ReviewPage({ tokenId }) {
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginTop: '0.5rem', maxWidth: '320px', textAlign: 'center' }}>
             This review link is invalid or has been removed. Please verify the URL and try again.
           </p>
-          <button className="primary-btn" style={{ marginTop: '2rem' }} onClick={() => window.location.href = window.location.origin + import.meta.env.BASE_URL}>
-            ← Go to App
+          <button className="primary-btn" style={{ marginTop: '2rem' }} onClick={() => {
+            window.close();
+            alert("You can safely close this tab now.");
+          }}>
+            Close Tab
           </button>
         </div>
       </div>
@@ -142,8 +183,11 @@ export default function ReviewPage({ tokenId }) {
               <div style={{ fontWeight: 600 }}>{tokenData.ammSignature?.name || '—'}</div>
             </div>
           )}
-          <button className="primary-btn" style={{ marginTop: '2rem' }} onClick={() => window.location.href = window.location.origin + import.meta.env.BASE_URL}>
-            ← Go to App
+          <button className="primary-btn" style={{ marginTop: '2rem' }} onClick={() => {
+            window.close();
+            alert("You can safely close this tab now.");
+          }}>
+            Close Tab
           </button>
         </div>
       </div>
@@ -173,14 +217,37 @@ export default function ReviewPage({ tokenId }) {
             style={{ marginTop: '2rem', width: '100%', maxWidth: '200px' }}
             onClick={() => {
               window.close();
-              // Fallback: if window.close() was blocked (tab not opened by script),
-              // redirect to the app's home page after a short delay.
-              setTimeout(() => {
-                window.location.href = window.location.origin + import.meta.env.BASE_URL;
-              }, 300);
+              alert("You can safely close this tab now.");
             }}
           >
-            Thank you 👋
+            Close Tab
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Rejected Success ──
+  if (status === 'rejected_success') {
+    return (
+      <div className="review-page-shell">
+        <div className="review-center-card glass-panel animate-scale-in" style={{ borderColor: 'rgba(255, 60, 60, 0.3)' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⛔</div>
+          <h2 style={{ color: 'var(--neon-red)', marginBottom: '0.4rem', fontFamily: 'var(--font-display)' }}>
+            Checklist Rejected
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', maxWidth: '320px', textAlign: 'center' }}>
+            You have rejected this checklist. It will be sent back to CMM for review.
+          </p>
+          <button 
+            className="primary-btn" 
+            style={{ marginTop: '2rem', width: '100%', maxWidth: '200px' }}
+            onClick={() => {
+              window.close();
+              alert("You can safely close this tab now.");
+            }}
+          >
+            Close Tab
           </button>
         </div>
       </div>
@@ -215,7 +282,12 @@ export default function ReviewPage({ tokenId }) {
           </div>
           <div className="review-meta-row">
             <span className="review-meta-label">Status</span>
-            <span className="badge badge-pending">⏳ Pending Your Signature</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
+              <span className="badge badge-pending">⏳ Pending Your Signature</span>
+              {timeLeft && timeLeft !== 'Expired' && (
+                <span style={{ fontSize: '0.8rem', color: 'var(--neon-amber)', fontWeight: 600 }}>⏱ Expires in {timeLeft}</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -291,7 +363,7 @@ export default function ReviewPage({ tokenId }) {
             Please fill in your details and draw your signature to approve this checklist.
           </p>
 
-          <form onSubmit={handleSubmit} className="checklist-form">
+          <form className="checklist-form">
             <div className="input-group">
               <label>Full Name <span style={{ color: 'var(--neon-red)' }}>*</span></label>
               <input
@@ -324,23 +396,51 @@ export default function ReviewPage({ tokenId }) {
                 className="styled-input"
               />
             </div>
+            <div className="input-group">
+              <label>Remarks / Report <span style={{ color: 'var(--text-tertiary)', fontWeight: 'normal', fontSize: '0.8em' }}>(Required for Rejection, optional for Approval)</span></label>
+              <textarea
+                placeholder="Any comments, notes, or reasons for rejection..."
+                value={ammRemarks}
+                onChange={e => setAmmRemarks(e.target.value)}
+                className="styled-textarea"
+                rows={3}
+              />
+            </div>
 
             {submitError && (
               <div className="error-message" style={{ marginTop: '1rem' }}>⚠️ {submitError}</div>
             )}
 
             <div className="section-divider" style={{ margin: '1.5rem 0' }} />
-            <button
-              type="submit"
-              className="primary-btn submit-btn"
-              disabled={status === 'submitting'}
-            >
-              {status === 'submitting' ? (
-                <><span className="spinner" /> Submitting…</>
-              ) : (
-                <>✅ Approve &amp; Sign</>
-              )}
-            </button>
+            
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={(e) => submitAction(e, 'approve')}
+                className="primary-btn submit-btn"
+                disabled={status === 'submitting'}
+                style={{ flex: 1 }}
+              >
+                {status === 'submitting' ? (
+                  <><span className="spinner" /> Submitting…</>
+                ) : (
+                  <>✅ Approve &amp; Sign</>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => submitAction(e, 'reject')}
+                className="secondary-btn"
+                disabled={status === 'submitting'}
+                style={{ flex: 1, borderColor: 'rgba(255, 60, 60, 0.4)', color: 'var(--neon-red)' }}
+              >
+                {status === 'submitting' ? (
+                  <><span className="spinner" /> Submitting…</>
+                ) : (
+                  <>⛔ Reject</>
+                )}
+              </button>
+            </div>
           </form>
         </div>
 

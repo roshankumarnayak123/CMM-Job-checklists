@@ -4,18 +4,22 @@ import { toast } from 'react-hot-toast';
 import CheckpointsEditor from './CheckpointsEditor';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 import { firebaseService } from '../../services/firebaseService';
+import { useAreas } from '../../hooks/useFirebaseSubscriptions';
 
 export default function EditChecklistModal({ showEditModal, setShowEditModal, selectedChecklist, onDelete }) {
   useLockBodyScroll(showEditModal);
   const [title, setTitle]               = useState('');
   const [description, setDescription]   = useState('');
+  const [areaId, setAreaId]             = useState('');
   const [checkpoints, setCheckpoints]   = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { data: areasList, loading: areasLoading } = useAreas();
 
   useEffect(() => {
     if (showEditModal && selectedChecklist) {
       setTitle(selectedChecklist.title || '');
       setDescription(selectedChecklist.description || '');
+      setAreaId(selectedChecklist.areaId || '');
       setCheckpoints(selectedChecklist.checkpoints || []);
       setIsSubmitting(false);
     }
@@ -37,6 +41,7 @@ export default function EditChecklistModal({ showEditModal, setShowEditModal, se
       await firebaseService.updateChecklist(selectedChecklist.id, { 
         title: title.trim(), 
         description: description.trim(), 
+        areaId: areaId || null,
         checkpoints,
         history: updatedHistory
       });
@@ -53,6 +58,7 @@ export default function EditChecklistModal({ showEditModal, setShowEditModal, se
     if (!selectedChecklist) return false;
     return title !== selectedChecklist.title || 
            description !== selectedChecklist.description || 
+           areaId !== (selectedChecklist.areaId || '') ||
            JSON.stringify(checkpoints) !== JSON.stringify(selectedChecklist.checkpoints || []);
   };
 
@@ -84,6 +90,21 @@ export default function EditChecklistModal({ showEditModal, setShowEditModal, se
             <div className="input-group">
               <label htmlFor="edit-checklist-desc">Description</label>
               <input id="edit-checklist-desc" type="text" value={description} onChange={e => setDescription(e.target.value)} required />
+            </div>
+            <div className="input-group">
+              <label htmlFor="edit-checklist-area">Area (Optional)</label>
+              <select 
+                id="edit-checklist-area" 
+                value={areaId} 
+                onChange={e => setAreaId(e.target.value)}
+                style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-glass)', color: 'var(--text)' }}
+                disabled={areasLoading}
+              >
+                <option value="">{areasLoading ? 'Loading areas...' : 'None / General'}</option>
+                {areasList.map(area => (
+                  <option key={area.id} value={area.id}>{area.name}</option>
+                ))}
+              </select>
             </div>
             <div className="section-divider" style={{ margin: '1.1rem 0' }}></div>
             <CheckpointsEditor checkpoints={checkpoints} setCheckpoints={setCheckpoints} />

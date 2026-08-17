@@ -22,6 +22,19 @@ export const firebaseService = {
       callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, onError);
   },
+  subscribeToSubmissionsByChecklist: (checklistId, callback, onError, limitCount = 500) => {
+    // Note: since we query by checklistId and order by submittedAt, this requires a composite index.
+    // If not present, Firebase will log an error with a link to create it.
+    // However, since we don't have a composite index, we can just fetch and filter client-side for now,
+    // or we can remove the orderBy and let the client sort. We will fetch without orderBy to avoid index requirement.
+    const q = query(collection(db, 'filled_checklists'), limit(limitCount));
+    return onSnapshot(q, snapshot => {
+      let docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      docs = docs.filter(d => d.checklistId === checklistId);
+      docs.sort((a, b) => (b.submittedAt?.toMillis?.() || 0) - (a.submittedAt?.toMillis?.() || 0));
+      callback(docs);
+    }, onError);
+  },
   submitChecklist: async (data) => await addDoc(collection(db, 'filled_checklists'), data),
   getSubmission: async (id) => await getDoc(doc(db, 'filled_checklists', id)),
   updateSubmission: async (id, data) => await updateDoc(doc(db, 'filled_checklists', id), data),
@@ -34,9 +47,28 @@ export const firebaseService = {
       callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, onError);
   },
+  subscribeToTokensByChecklist: (checklistId, callback, onError) => {
+    const q = query(collection(db, 'review_tokens'), limit(500));
+    return onSnapshot(q, snapshot => {
+      let docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      docs = docs.filter(d => d.checklistId === checklistId);
+      docs.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+      callback(docs);
+    }, onError);
+  },
   getReviewToken: async (id) => await getDoc(doc(db, 'review_tokens', id)),
   updateReviewToken: async (id, data) => await updateDoc(doc(db, 'review_tokens', id), data),
   createReviewToken: async (data) => await addDoc(collection(db, 'review_tokens'), data),
+  
+  // Areas
+  subscribeToAreas: (callback, onError) => {
+    const q = query(collection(db, 'areas'), orderBy('name', 'asc'));
+    return onSnapshot(q, snapshot => {
+      callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, onError);
+  },
+  createArea: async (data) => await addDoc(collection(db, 'areas'), data),
+  deleteArea: async (id) => await deleteDoc(doc(db, 'areas', id)),
   
   // Auth
   login: async (email, password) => await signInWithEmailAndPassword(auth, email, password),

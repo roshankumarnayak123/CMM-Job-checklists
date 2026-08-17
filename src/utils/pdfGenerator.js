@@ -149,10 +149,21 @@ export function generatePDFReport(sub) {
       </table>
     </div>` : ''}
 
-    ${sub.notes ? `
+    ${sub.notes || sub.ammRemarks ? `
     <div class="section">
       <div class="section-title">📝 Notes &amp; Report</div>
-      <div class="notes-box">${escape(sub.notes)}</div>
+      <div style="display: grid; grid-template-columns: 1fr; gap: 16px;">
+        ${sub.notes ? `
+        <div>
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px;">CMM Notes</div>
+          <div class="notes-box">${escape(sub.notes)}</div>
+        </div>` : ''}
+        ${sub.ammRemarks ? `
+        <div>
+          <div style="font-size: 10px; font-weight: 700; color: ${sub.status === 'rejected' ? '#ef4444' : '#64748b'}; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px;">AMM ${sub.status === 'rejected' ? 'Rejection Remarks' : 'Notes'}</div>
+          <div class="notes-box" ${sub.status === 'rejected' ? 'style="border-left-color: #ef4444; background: #fef2f2;"' : 'style="border-left-color: #3b82f6;"'}>${escape(sub.ammRemarks)}</div>
+        </div>` : ''}
+      </div>
     </div>` : ''}
 
     ${sub.generalPhotoUrl ? `

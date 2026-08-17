@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useAreas } from './hooks/useFirebaseSubscriptions';
 import './App.css';
 
 // Color accents for card variety
@@ -21,15 +22,20 @@ function SkeletonCard() {
 
 export default function ChecklistView({ checklists, loading, selectedChecklist, setSelectedChecklist }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedAreaId, setSelectedAreaId] = useState('');
+  const { data: areasList, loading: areasLoading } = useAreas();
 
   const filteredChecklists = useMemo(() => {
+    if (!selectedAreaId) return []; // Require area selection
+
     return [...checklists]
-      .filter(c =>
-        c.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.description?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      .filter(c => {
+        const matchesSearch = c.title?.toLowerCase().includes(searchTerm.toLowerCase()) || c.description?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesArea = selectedAreaId === 'ALL' || c.areaId === selectedAreaId;
+        return matchesSearch && matchesArea;
+      })
       .sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-  }, [checklists, searchTerm]);
+  }, [checklists, searchTerm, selectedAreaId]);
 
   // 3D tilt effect on card hover
   const handleCardMouseMove = (e, el) => {
@@ -49,20 +55,56 @@ export default function ChecklistView({ checklists, loading, selectedChecklist, 
     <div className="left-pane">
       <div className="search-header glass-panel">
         <div className="pane-title">Checklists</div>
-        <div className="pane-subtitle">
-          {loading ? 'Loading…' : `${filteredChecklists.length} checklist${filteredChecklists.length !== 1 ? 's' : ''}`}
+        <div className="pane-subtitle" style={{ 
+          fontWeight: selectedAreaId ? 'normal' : '600',
+          fontSize: selectedAreaId ? '0.9rem' : '1.1rem',
+          color: selectedAreaId ? 'var(--text-dim)' : 'var(--text)',
+          marginBottom: '1rem',
+          marginTop: '0.2rem'
+        }}>
+          {loading ? 'Loading…' : (selectedAreaId ? `${filteredChecklists.length} checklist${filteredChecklists.length !== 1 ? 's' : ''}` : 'Select an area to continue:')}
         </div>
-        <div className="search-bar">
-          <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input
-            type="text"
-            placeholder="Search checklists…"
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-          />
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', width: '100%' }}>
+          <select 
+            value={selectedAreaId} 
+            onChange={e => setSelectedAreaId(e.target.value)}
+            className="primary-btn"
+            style={{ 
+              padding: '0.8rem 1rem', 
+              borderRadius: '8px', 
+              width: '100%',
+              textAlign: 'left',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '1rem',
+              outline: 'none',
+              border: 'none',
+              boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)'
+            }}
+            disabled={areasLoading}
+          >
+            <option value="">{areasLoading ? 'Loading areas...' : '👇 Select an Area First'}</option>
+            <option value="ALL">🌍 All Areas</option>
+            {areasList.map(area => (
+              <option key={area.id} value={area.id}>📍 {area.name}</option>
+            ))}
+          </select>
+          
+          {selectedAreaId && (
+            <div className="search-bar" style={{ margin: 0, animation: 'fadeIn 0.3s ease-out' }}>
+              <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input
+                type="text"
+                placeholder="Search checklists in this area…"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -77,7 +119,7 @@ export default function ChecklistView({ checklists, loading, selectedChecklist, 
         ) : filteredChecklists.length === 0 ? (
           <div className="no-results">
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🔍</div>
-            {searchTerm ? `No results for "${searchTerm}"` : 'No checklists available.'}
+            {!selectedAreaId ? 'Please select an area above to view checklists.' : (searchTerm ? `No results for "${searchTerm}"` : 'No checklists available in this area.')}
           </div>
         ) : (
           filteredChecklists.map((checklist, idx) => {
