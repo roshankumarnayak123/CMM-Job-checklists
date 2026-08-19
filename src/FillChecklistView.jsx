@@ -695,7 +695,7 @@ export default function FillChecklistView({ selectedChecklist, editSubmission, o
                 <input 
                   type="date" 
                   required 
-                  value={cmmSignature.date} 
+                  value={cmmData.date} 
                   readOnly 
                   className="styled-input" 
                   style={{ opacity: 0.7, cursor: 'not-allowed', backgroundColor: 'var(--bg-glass-strong)' }}
